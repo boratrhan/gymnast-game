@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -31,6 +32,15 @@ public class GymnastSwing : MonoBehaviour
     /// <summary>Quality (0..1) of the most recent tap: 1 = exactly at the bottom.</summary>
     public float LastPumpQuality { get; private set; }
 
+    /// <summary>Number of complete turns over the bar so far.</summary>
+    public int FullTurns { get; private set; }
+
+    /// <summary>Raised on every tap with its quality (0 = miss, 1 = perfect).</summary>
+    public event Action<float> Pumped;
+
+    /// <summary>Raised each time the gymnast completes a full turn over the bar.</summary>
+    public event Action<int> FullTurnCompleted;
+
     private void Start()
     {
         angle = startAngle * Mathf.Deg2Rad;
@@ -53,25 +63,40 @@ public class GymnastSwing : MonoBehaviour
         angle += angularVelocity * dt;
 
         transform.rotation = Quaternion.Euler(0f, 0f, angle * Mathf.Rad2Deg);
+
+        CheckFullTurn();
+    }
+
+    private void CheckFullTurn()
+    {
+        // angle is not wrapped, so it keeps growing with each turn.
+        // A turn counts when the gymnast passes over the top of the bar: |angle| > PI, 3*PI, 5*PI ...
+        int turns = Mathf.FloorToInt((Mathf.Abs(angle) + Mathf.PI) / (2f * Mathf.PI));
+        if (turns > FullTurns)
+        {
+            FullTurns = turns;
+            FullTurnCompleted?.Invoke(FullTurns);
+        }
     }
 
     private void TryPump()
     {
-
         if (Time.time - lastPumpTime < pumpCooldown)
             return;
+        lastPumpTime = Time.time;
 
         float distanceFromBottom = Mathf.Abs(AngleDegrees);
         if (distanceFromBottom > pumpWindow)
         {
             LastPumpQuality = 0f;
+            Pumped?.Invoke(0f);
             return;
         }
 
         LastPumpQuality = 1f - distanceFromBottom / pumpWindow;
         float direction = Mathf.Sign(angularVelocity == 0f ? 1f : angularVelocity);
         angularVelocity += direction * pumpStrength * LastPumpQuality;
-        lastPumpTime = Time.time;
+        Pumped?.Invoke(LastPumpQuality);
     }
 
     private static bool TapPressedThisFrame()
