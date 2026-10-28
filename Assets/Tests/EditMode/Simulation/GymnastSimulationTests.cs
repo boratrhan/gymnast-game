@@ -28,16 +28,33 @@ namespace GymnastGame.Simulation.Tests
             return 0.5f * ArmLength * ArmLength * w * w + Gravity * ArmLength * (1f - Mathf.Cos(a));
         }
 
+        // The swing uses semi-implicit Euler (velocity first, then angle). It conserves a slightly
+        // different "shadow" energy, so the true energy wobbles by about (dt/2)·ω·(g/L)·sin θ:
+        // roughly ±3 % mid-swing at dt = 0.02, close to zero at the turning points, and it never drifts.
+        // So we check for drift and measure at the turning points instead of at an arbitrary moment.
         [Test]
-        public void Swing_WithoutDamping_KeepsItsEnergy()
+        public void Swing_WithoutDamping_HasNoEnergyDrift()
         {
             var sim = Create(damping: 0f);
             float start = Energy(sim);
+            const int steps = 10000;            // 200 seconds, about 95 swings
+            const int window = 500;             // 10 seconds
+            float firstWindowMax = 0f, lastWindowMax = 0f, turningPointMax = 0f;
 
-            for (int i = 0; i < 1000; i++)  // 20 seconds, about 10 swings
+            for (int i = 0; i < steps; i++)
+            {
+                float previousVelocity = sim.AngularVelocity;
                 sim.Step(Dt, GymnastCommands.None);
+                float deviation = Mathf.Abs(Energy(sim) - start) / start;
 
-            Assert.AreEqual(start, Energy(sim), start * 0.02f);
+                if (i < window) firstWindowMax = Mathf.Max(firstWindowMax, deviation);
+                if (i >= steps - window) lastWindowMax = Mathf.Max(lastWindowMax, deviation);
+                bool turned = previousVelocity != 0f && Mathf.Sign(previousVelocity) != Mathf.Sign(sim.AngularVelocity);
+                if (turned) turningPointMax = Mathf.Max(turningPointMax, deviation);
+            }
+
+            Assert.LessOrEqual(lastWindowMax, firstWindowMax + 0.001f, "energy drifts over time");
+            Assert.Less(turningPointMax, 0.005f, "energy at the turning points");
         }
 
         [Test]

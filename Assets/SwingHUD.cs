@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 
 /// <summary>
@@ -22,10 +21,25 @@ public class SwingHUD : MonoBehaviour
     private GUIStyle feedbackStyle;
     private GUIStyle counterStyle;
     private GUIStyle hintStyle;
-    private GUIStyle scoreStyle;
+    private GUIStyle cardStyle;
+    private GUIStyle cardTitleStyle;
+    private GUIStyle cardHeaderStyle;
+    private GUIStyle cardLineStyle;
+    private GUIStyle cardTotalStyle;
+    private GUIStyle cardHintStyle;
     private Texture2D cardBackground;
-    private string scoreText;
-    private int scoreLineCount;
+
+    // Score card layout, in unscaled pixels. The card shrinks to fit small windows.
+    private const float CardWidth = 440f;
+    private const float CardPadding = 20f;
+    private const float CardGap = 10f;
+    private const float ScreenMargin = 16f;
+
+    private enum CardRowKind { Title, Header, Line, Total, Hint, Gap }
+
+    private readonly List<CardRowKind> cardRowKinds = new List<CardRowKind>();
+    private readonly List<GUIContent> cardRowContents = new List<GUIContent>();
+    private readonly List<float> cardRowHeights = new List<float>();     // measured once, on the first draw
 
     // Subscribe in OnEnable / unsubscribe in OnDisable so we never leak event handlers.
     private void OnEnable()
@@ -66,7 +80,7 @@ public class SwingHUD : MonoBehaviour
     private void HandleLanded(ScoreResult result)
     {
         hasLanded = true;
-        BuildScoreText(result);
+        BuildScoreCard(result);
         Color c = result.LandingLabel == "Fall" ? new Color(1f, 0.4f, 0.4f) : new Color(1f, 0.85f, 0.2f);
         ShowFeedback(result.LandingLabel, c);
     }
@@ -93,13 +107,13 @@ public class SwingHUD : MonoBehaviour
             cardBackground = new Texture2D(1, 1);
             cardBackground.SetPixel(0, 0, cardColor);
             cardBackground.Apply();
-            scoreStyle = new GUIStyle(GUI.skin.box)
-            {
-                fontSize = 24, alignment = TextAnchor.MiddleCenter, richText = true,
-                padding = new RectOffset(20, 20, 16, 16)
-            };
-            scoreStyle.normal.background = cardBackground;
-            scoreStyle.normal.textColor = Color.white;
+            cardStyle = new GUIStyle(GUI.skin.box);
+            cardStyle.normal.background = cardBackground;
+            cardTitleStyle = CardTextStyle(30, FontStyle.Bold);
+            cardHeaderStyle = CardTextStyle(24, FontStyle.Bold);
+            cardLineStyle = CardTextStyle(20, FontStyle.Normal);
+            cardTotalStyle = CardTextStyle(40, FontStyle.Bold);
+            cardHintStyle = CardTextStyle(18, FontStyle.Normal);
         }
 
         if (gymnast == null) return;
@@ -123,39 +137,109 @@ public class SwingHUD : MonoBehaviour
         }
 
         if (hasLanded)
+            DrawScoreCard();
+    }
+
+    private void DrawScoreCard()
+    {
+        float innerWidth = CardWidth - 2f * CardPadding;
+
+        // Measure each row with its real style once; CalcHeight needs the styles, so it runs here.
+        if (cardRowHeights.Count != cardRowKinds.Count)
         {
-            float w = 440, h = 230 + scoreLineCount * 28;
-            GUI.Box(new Rect((Screen.width - w) / 2, (Screen.height - h) / 2, w, h), scoreText, scoreStyle);
+            cardRowHeights.Clear();
+            for (int i = 0; i < cardRowKinds.Count; i++)
+            {
+                cardRowHeights.Add(cardRowKinds[i] == CardRowKind.Gap
+                    ? CardGap
+                    : StyleFor(cardRowKinds[i]).CalcHeight(cardRowContents[i], innerWidth));
+            }
         }
+
+        float height = 2f * CardPadding;
+        foreach (float rowHeight in cardRowHeights) height += rowHeight;
+
+        // Shrink the whole card (never enlarge it) so it fits a small Game window.
+        float scale = Mathf.Min(1f,
+            (Screen.width - 2f * ScreenMargin) / CardWidth,
+            (Screen.height - 2f * ScreenMargin) / height);
+        var centre = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        Matrix4x4 previousMatrix = GUI.matrix;
+        GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), centre);
+
+        var card = new Rect(centre.x - CardWidth / 2f, centre.y - height / 2f, CardWidth, height);
+        GUI.Box(card, GUIContent.none, cardStyle);
+
+        float y = card.y + CardPadding;
+        for (int i = 0; i < cardRowKinds.Count; i++)
+        {
+            if (cardRowKinds[i] != CardRowKind.Gap)
+                GUI.Label(new Rect(card.x + CardPadding, y, innerWidth, cardRowHeights[i]), cardRowContents[i], StyleFor(cardRowKinds[i]));
+            y += cardRowHeights[i];
+        }
+
+        GUI.matrix = previousMatrix;
     }
 
     // Built once on landing, not every OnGUI call.
-    private void BuildScoreText(ScoreResult result)
+    private void BuildScoreCard(ScoreResult result)
     {
-        var text = new StringBuilder();
-        text.Append($"<b>{result.LandingLabel}</b>\n\n");
-        text.Append($"<b>D  {result.Difficulty:F1}</b>\n");
-        AppendLines(text, result.DifficultyLines, "no difficulty yet");
-        text.Append($"\n<b>E  {result.Execution:F1}</b>\n");
-        AppendLines(text, result.ExecutionLines, "no deductions");
-        text.Append($"\n<size=40><b>{result.Total:F2}</b></size>\n");
-        text.Append("<size=18>Press R to try again</size>");
+        cardRowKinds.Clear();
+        cardRowContents.Clear();
+        cardRowHeights.Clear();
 
-        scoreText = text.ToString();
-        scoreLineCount = Mathf.Max(result.DifficultyLines.Count, 1) + Mathf.Max(result.ExecutionLines.Count, 1);
+        AddRow(CardRowKind.Title, result.LandingLabel);
+        AddRow(CardRowKind.Gap, "");
+        AddRow(CardRowKind.Header, $"D  {result.Difficulty:F1}");
+        AddScoreLines(result.DifficultyLines, "no difficulty yet");
+        AddRow(CardRowKind.Gap, "");
+        AddRow(CardRowKind.Header, $"E  {result.Execution:F1}");
+        AddScoreLines(result.ExecutionLines, "no deductions");
+        AddRow(CardRowKind.Gap, "");
+        AddRow(CardRowKind.Total, $"{result.Total:F2}");
+        AddRow(CardRowKind.Hint, "Press R to try again");
     }
 
-    private static void AppendLines(StringBuilder text, IReadOnlyList<ScoreLine> lines, string emptyText)
+    private void AddScoreLines(IReadOnlyList<ScoreLine> lines, string emptyText)
     {
         if (lines.Count == 0)
         {
-            text.Append($"<size=18><color=#9AA0A6>{emptyText}</color></size>\n");
+            AddRow(CardRowKind.Line, $"<color=#9AA0A6>{emptyText}</color>");
             return;
         }
         foreach (var line in lines)
         {
             string colour = line.Points >= 0f ? "#8FE38F" : "#FF8A80";
-            text.Append($"<size=20><color={colour}>{line.Points:+0.0;-0.0}</color>   {line.Label}</size>\n");
+            AddRow(CardRowKind.Line, $"<color={colour}>{line.Points:+0.0;-0.0}</color>   {line.Label}");
         }
+    }
+
+    private void AddRow(CardRowKind kind, string text)
+    {
+        cardRowKinds.Add(kind);
+        cardRowContents.Add(new GUIContent(text));
+    }
+
+    private GUIStyle StyleFor(CardRowKind kind)
+    {
+        switch (kind)
+        {
+            case CardRowKind.Title: return cardTitleStyle;
+            case CardRowKind.Header: return cardHeaderStyle;
+            case CardRowKind.Total: return cardTotalStyle;
+            case CardRowKind.Hint: return cardHintStyle;
+            default: return cardLineStyle;
+        }
+    }
+
+    private static GUIStyle CardTextStyle(int fontSize, FontStyle fontStyle)
+    {
+        var style = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = fontSize, fontStyle = fontStyle, alignment = TextAnchor.MiddleCenter,
+            richText = true, wordWrap = true
+        };
+        style.normal.textColor = Color.white;
+        return style;
     }
 }
