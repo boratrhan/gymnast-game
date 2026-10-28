@@ -32,6 +32,9 @@ public class GymnastSwing : MonoBehaviour
     /// <summary>Quality (0..1) of the most recent tap: 1 = exactly at the bottom.</summary>
     public float LastPumpQuality { get; private set; }
 
+    /// <summary>Number of taps that landed outside the pump window.</summary>
+    public int MissCount { get; private set; }
+
     /// <summary>Number of complete turns over the bar so far.</summary>
     public int FullTurns { get; private set; }
 
@@ -89,6 +92,7 @@ public class GymnastSwing : MonoBehaviour
         if (distanceFromBottom > pumpWindow)
         {
             LastPumpQuality = 0f;
+            MissCount++;
             Pumped?.Invoke(0f);
             return;
         }
