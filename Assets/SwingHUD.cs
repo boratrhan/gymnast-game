@@ -4,12 +4,11 @@ using UnityEngine;
 /// Simple on-screen feedback: PERFECT / GOOD / OK / MISS after each tap, a giant swing counter,
 /// the controls, and the judges' score after landing. Uses Unity's immediate-mode GUI (OnGUI),
 /// which needs no extra packages and is fine for a prototype; we can swap it for a proper UI later.
-/// Attach to any object and drag the Bar into both the "Swing" and "Dismount" fields.
+/// Attach to any object and drag the Bar (with GymnastController) into the "Gymnast" field.
 /// </summary>
 public class SwingHUD : MonoBehaviour
 {
-    [SerializeField] private GymnastSwing swing;
-    [SerializeField] private GymnastDismount dismount;
+    [SerializeField] private GymnastController gymnast;
     [SerializeField] private float feedbackDuration = 0.8f;
 
     private string feedbackText = "";
@@ -25,30 +24,20 @@ public class SwingHUD : MonoBehaviour
     // Subscribe in OnEnable / unsubscribe in OnDisable so we never leak event handlers.
     private void OnEnable()
     {
-        if (swing != null)
-        {
-            swing.Pumped += HandlePumped;
-            swing.FullTurnCompleted += HandleFullTurn;
-        }
-        if (dismount != null)
-        {
-            dismount.Released += HandleReleased;
-            dismount.Landed += HandleLanded;
-        }
+        if (gymnast == null) return;
+        gymnast.Pumped += HandlePumped;
+        gymnast.FullTurnCompleted += HandleFullTurn;
+        gymnast.Released += HandleReleased;
+        gymnast.Landed += HandleLanded;
     }
 
     private void OnDisable()
     {
-        if (swing != null)
-        {
-            swing.Pumped -= HandlePumped;
-            swing.FullTurnCompleted -= HandleFullTurn;
-        }
-        if (dismount != null)
-        {
-            dismount.Released -= HandleReleased;
-            dismount.Landed -= HandleLanded;
-        }
+        if (gymnast == null) return;
+        gymnast.Pumped -= HandlePumped;
+        gymnast.FullTurnCompleted -= HandleFullTurn;
+        gymnast.Released -= HandleReleased;
+        gymnast.Landed -= HandleLanded;
     }
 
     private void HandlePumped(float quality)
@@ -94,8 +83,9 @@ public class SwingHUD : MonoBehaviour
             };
         }
 
-        if (swing != null)
-            GUI.Label(new Rect(20, 20, 400, 40), $"Giant swings: {swing.FullTurns}", counterStyle);
+        if (gymnast == null) return;
+
+        GUI.Label(new Rect(20, 20, 400, 40), $"Giant swings: {gymnast.FullTurns}", counterStyle);
 
         float age = Time.time - feedbackTime;
         if (age < feedbackDuration)
@@ -107,7 +97,7 @@ public class SwingHUD : MonoBehaviour
             GUI.Label(new Rect(0, Screen.height * 0.15f, Screen.width, 80), feedbackText, feedbackStyle);
         }
 
-        if (dismount != null && dismount.IsSwinging)
+        if (gymnast.IsSwinging)
         {
             GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 30),
                 "SPACE / click: pump at the bottom     ENTER / right-click: release", hintStyle);
@@ -115,7 +105,7 @@ public class SwingHUD : MonoBehaviour
 
         if (hasLanded)
         {
-            ScoreResult r = dismount.Result;
+            ScoreResult r = gymnast.Result;
             string text =
                 $"<b>{r.LandingLabel}</b>\n" +
                 $"D {r.Difficulty:F1}  +  E {r.Execution:F1}\n" +

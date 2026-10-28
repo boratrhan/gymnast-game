@@ -42,8 +42,6 @@ The game still uses these placeholder values. A data-driven D-score engine based
 
 ```
 Assets/
-├── GymnastSwing.cs     Pendulum physics and tap-to-pump timing
-├── GymnastDismount.cs  Release, projectile flight, in-air rotation, landing
 ├── ScoreJudge.cs       D + E scoring rules (pure C#, no Unity dependencies)
 ├── SwingHUD.cs         On-screen feedback, controls and score card
 ├── Editor/             GymnastSceneBuilder: menu that builds the real-scale 3D scene
@@ -52,15 +50,18 @@ Assets/
 │   ├── deductions.json   Execution deductions as measurable rules (angle, count or event bands)
 │   └── composition.json  D-score composition: counting elements, group bonuses, connections, stick bonus, flight limit
 ├── Scripts/Rules/      D-score engine (own assembly, pure C#): catalogue, routine, DScoreCalculator
-├── Scripts/Presentation/ CameraFollow: perspective camera that follows the gymnast
-└── Tests/EditMode/     NUnit tests for the D-score engine, with routines calculated by hand
+├── Scripts/Simulation/ GymnastSimulation (own assembly, pure C#): swing, pump, release, flight, touchdown
+├── Scripts/Gameplay/   GymnastController (input, events, landing animation), RoundFlow (restart)
+├── Scripts/Presentation/ GymnastView (draws the pose), CameraFollow (perspective camera)
+└── Tests/EditMode/     NUnit tests: D-score routines calculated by hand, and simulation physics
 ```
 
 **Design decisions**
 
 - **Hand-written physics, not Rigidbody.** The swing is a pendulum (`α = −(g / L) · sin θ`) integrated in `FixedUpdate`, so the motion is deterministic and fully tunable from the Inspector.
 - **Physically consistent release.** On release, the gymnast's velocity is the tangential velocity of the swing (`v = ω × r`), and the body keeps rotating at the swing's angular velocity. Releasing at the right point in the swing really does matter.
-- **Gameplay decoupled from presentation.** `GymnastSwing` and `GymnastDismount` expose C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), so audio, effects or a new UI can be added without touching the gameplay code.
+- **Simulation, gameplay and presentation are separate.** `GymnastSimulation` is plain C# with its own clock, so the same input always gives the same motion and the physics is unit-tested. `GymnastController` feeds it input and exposes C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), and `GymnastView` only draws the pose, so audio, effects or a new UI can be added without touching the gameplay code.
+- **Landing animations match the score.** A stuck landing gives at the knees, a small step steps out and straightens up, and a fall tips over, using coroutines. The score card appears only after the animation finishes.
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
 - **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
 - **Planar physics, 3D view.** Swing and flight are simulated in one vertical plane, as on a real high bar, and shown in a real-scale 3D scene (bar 2.6 m above the mat) with the Universal Render Pipeline and a following perspective camera.

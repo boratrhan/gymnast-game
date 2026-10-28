@@ -4,7 +4,8 @@ using UnityEngine;
 
 /// <summary>
 /// Editor menu that turns the open scene into the real-scale 3D high bar scene:
-/// mat top at y = 0, bar 2.6 m above it (bar axis along Z), perspective camera that follows the gymnast.
+/// mat top at y = 0, bar 2.6 m above it (bar axis along Z), perspective camera that follows the gymnast,
+/// and the gameplay components (GymnastController, GymnastView, RoundFlow) wired together.
 /// Safe to run again: objects are found by name and updated, missing ones are created.
 /// </summary>
 public static class GymnastSceneBuilder
@@ -22,34 +23,44 @@ public static class GymnastSceneBuilder
     public static void Build()
     {
         var bar = Require("Bar");
-        var swing = bar.GetComponent<GymnastSwing>();
-        var dismount = bar.GetComponent<GymnastDismount>();
-        if (swing == null || dismount == null)
-        {
-            Debug.LogError("'Bar' needs GymnastSwing and GymnastDismount. Is Main.unity open?");
-            return;
-        }
+        var gymnastObject = Require("Gymnast");
+        if (bar == null || gymnastObject == null) return;
 
         Undo.SetCurrentGroupName("Build 3D Scene");
         int undoGroup = Undo.GetCurrentGroup();
 
-        // Bar pivot: the swing rotates this transform, so only the gymnast is its child.
+        // The bar is the pivot of the swing. It no longer rotates: GymnastView places the body.
         Undo.RecordObject(bar.transform, "Bar");
         bar.transform.SetPositionAndRotation(new Vector3(0f, BarHeight, 0f), Quaternion.identity);
 
-        var gymnast = bar.transform.Find("Gymnast");
-        Undo.RecordObject(gymnast, "Gymnast");
-        gymnast.localPosition = new Vector3(0f, -CentreOfMassRadius, 0f);
-        gymnast.localRotation = Quaternion.identity;
-        gymnast.localScale = new Vector3(BodyThickness, BodyHeight / 2f, BodyThickness);  // capsule mesh is 2 m tall
-        SetMaterial(gymnast.gameObject, GetMaterial("Gymnast", new Color(0.80f, 0.12f, 0.15f), 0f, 0.4f));
+        // Old GymnastSwing / GymnastDismount scripts are deleted and show up as "Missing Script".
+        Undo.RegisterCompleteObjectUndo(bar, "Bar");
+        GameObjectUtility.RemoveMonoBehavioursWithMissingScript(bar);
 
+        var gymnast = gymnastObject.transform;
+        if (gymnast.parent != null) Undo.SetTransformParent(gymnast, null, "Gymnast");
+        Place(gymnastObject, new Vector3(0f, BarHeight - CentreOfMassRadius, 0f), Quaternion.identity,
+            new Vector3(BodyThickness, BodyHeight / 2f, BodyThickness));  // capsule mesh is 2 m tall
+        SetMaterial(gymnastObject, GetMaterial("Gymnast", new Color(0.80f, 0.12f, 0.15f), 0f, 0.4f));
+
+        var controller = GetOrAdd<GymnastController>(bar);
         // Inspector values are stored in the scene, so changing the defaults in code is not enough.
-        SetFloat(swing, "armLength", CentreOfMassRadius);
-        SetFloat(swing, "pumpStrength", 1.6f);  // shorter radius needs more speed for a giant swing; tune in play
-        SetFloat(dismount, "groundY", 0f);
-        SetFloat(dismount, "halfHeight", BodyHeight / 2f);
-        SetFloat(dismount, "bodyRadius", BodyThickness / 2f);
+        var controllerData = new SerializedObject(controller);
+        controllerData.FindProperty("bar").objectReferenceValue = bar.transform;
+        controllerData.FindProperty("settings.armLength").floatValue = CentreOfMassRadius;
+        controllerData.FindProperty("settings.pumpStrength").floatValue = 1.6f;  // tuned in play for the 1.1 m radius
+        controllerData.FindProperty("settings.groundY").floatValue = 0f;
+        controllerData.FindProperty("settings.halfHeight").floatValue = BodyHeight / 2f;
+        controllerData.FindProperty("settings.bodyRadius").floatValue = BodyThickness / 2f;
+        controllerData.ApplyModifiedProperties();
+
+        SetReference(GetOrAdd<RoundFlow>(bar), "gymnast", controller);
+        var view = GetOrAdd<GymnastView>(gymnastObject);
+        SetReference(view, "controller", controller);
+        SetReference(view, "body", gymnast);
+
+        var hud = Object.FindFirstObjectByType<SwingHUD>();
+        if (hud != null) SetReference(hud, "gymnast", controller);
 
         var steel = GetMaterial("Bar", new Color(0.78f, 0.80f, 0.83f), 0.9f, 0.8f);
         var barVisual = FindOrCreate("BarVisual", PrimitiveType.Cylinder, null);
@@ -68,7 +79,13 @@ public static class GymnastSceneBuilder
             SetMaterial(upright, steel);
         }
 
-        var mat = FindOrCreate("Ground", PrimitiveType.Cube, null);
+        var oldMat = GameObject.Find("Ground");
+        if (oldMat != null)
+        {
+            Undo.RecordObject(oldMat, "Rename Ground");
+            oldMat.name = "LandingMat";
+        }
+        var mat = FindOrCreate("LandingMat", PrimitiveType.Cube, null);
         Place(mat, new Vector3(0f, -MatThickness / 2f, 0f), Quaternion.identity, new Vector3(10f, MatThickness, 4f));
         SetMaterial(mat, GetMaterial("Mat", new Color(0.18f, 0.35f, 0.70f), 0f, 0.2f));
 
@@ -93,12 +110,9 @@ public static class GymnastSceneBuilder
         camera.nearClipPlane = 0.1f;
         camera.farClipPlane = 100f;
 
-        var follow = camera.GetComponent<CameraFollow>();
-        if (follow == null) follow = Undo.AddComponent<CameraFollow>(camera.gameObject);
-        var serialized = new SerializedObject(follow);
-        serialized.FindProperty("target").objectReferenceValue = gymnast;
-        serialized.FindProperty("anchor").objectReferenceValue = bar;
-        serialized.ApplyModifiedProperties();
+        var follow = GetOrAdd<CameraFollow>(camera.gameObject);
+        SetReference(follow, "target", gymnast);
+        SetReference(follow, "anchor", bar);
     }
 
     private static void SetUpLight()
@@ -139,10 +153,16 @@ public static class GymnastSceneBuilder
         target.transform.localScale = scale;
     }
 
-    private static void SetFloat(Object component, string field, float value)
+    private static T GetOrAdd<T>(GameObject target) where T : Component
+    {
+        var component = target.GetComponent<T>();
+        return component != null ? component : Undo.AddComponent<T>(target);
+    }
+
+    private static void SetReference(Object component, string field, Object value)
     {
         var serialized = new SerializedObject(component);
-        serialized.FindProperty(field).floatValue = value;
+        serialized.FindProperty(field).objectReferenceValue = value;
         serialized.ApplyModifiedProperties();
     }
 

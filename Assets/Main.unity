@@ -271,8 +271,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46bcf6513d268447794117c867aa3e6f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingHUD
-  swing: {fileID: 1554041791}
-  dismount: {fileID: 1554041792}
+  gymnast: {fileID: 1554041791}
   feedbackDuration: 0.8
 --- !u!4 &320780321
 Transform:
@@ -530,8 +529,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 2.6, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1997287329}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1554041791
@@ -543,16 +541,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 1554041789}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e9a46eddce0554036a0de163f45d297b, type: 3}
+  m_Script: {fileID: 11500000, guid: cafcb74684515480c88df6f6cd220b80, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GymnastSwing
-  gravity: 9.81
-  armLength: 1.1
-  damping: 0.15
-  startAngle: 30
-  pumpStrength: 1.6
-  pumpWindow: 25
-  pumpCooldown: 0.35
+  m_EditorClassIdentifier: Assembly-CSharp::GymnastController
+  bar: {fileID: 1554041790}
+  settings:
+    gravity: 9.81
+    armLength: 1.1
+    damping: 0.15
+    startAngle: 30
+    pumpStrength: 1.6
+    pumpWindow: 25
+    pumpCooldown: 0.35
+    groundY: 0
+    halfHeight: 0.85
+    bodyRadius: 0.175
+  stickDuration: 0.35
+  stickCrouch: 0.12
+  stepDuration: 0.45
+  stepDistance: 0.3
+  fallDuration: 0.6
 --- !u!114 &1554041792
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -562,15 +570,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 1554041789}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b280a56b47d6449afb2a09c027cc2a79, type: 3}
+  m_Script: {fileID: 11500000, guid: a28d772a0e5024c0f998d76b4d4e9945, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GymnastDismount
-  swing: {fileID: 1554041791}
-  gymnast: {fileID: 1997287329}
-  gravity: 9.81
-  groundY: 0
-  halfHeight: 0.85
-  bodyRadius: 0.175
+  m_EditorClassIdentifier: Assembly-CSharp::RoundFlow
+  gymnast: {fileID: 1554041791}
 --- !u!1 &1555720645
 GameObject:
   m_ObjectHideFlags: 0
@@ -674,7 +677,7 @@ GameObject:
   - component: {fileID: 1672190163}
   - component: {fileID: 1672190162}
   m_Layer: 0
-  m_Name: Ground
+  m_Name: LandingMat
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -986,6 +989,7 @@ GameObject:
   - component: {fileID: 1997287328}
   - component: {fileID: 1997287327}
   - component: {fileID: 1997287326}
+  - component: {fileID: 1997287330}
   m_Layer: 0
   m_Name: Gymnast
   m_TagString: Untagged
@@ -1082,12 +1086,26 @@ Transform:
   m_GameObject: {fileID: 1997287325}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -1.1, z: 0}
+  m_LocalPosition: {x: 0, y: 1.4999999, z: 0}
   m_LocalScale: {x: 0.35, y: 0.85, z: 0.35}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1554041790}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1997287330
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1997287325}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ebd1a8f1951c4ab2b4812c3022381f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GymnastView
+  controller: {fileID: 1554041791}
+  body: {fileID: 1997287329}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1100,3 +1118,4 @@ SceneRoots:
   - {fileID: 1672190165}
   - {fileID: 124758469}
   - {fileID: 1796339407}
+  - {fileID: 1997287329}

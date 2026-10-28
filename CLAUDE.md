@@ -27,20 +27,23 @@ Gameplay loop: swing → pump with timed taps → giant swings → release → i
 
 ```
 Assets/
-├── GymnastSwing.cs     Pendulum physics + tap-to-pump timing. Events: Pumped(quality), FullTurnCompleted(turns).
-│                       Exposes AngleDegrees, AngularVelocity, FullTurns, MissCount.
-├── GymnastDismount.cs  Release (v = ω × r), projectile flight, in-air spin, landing detection.
-│                       Landing snaps to a final pose (standing or lying); no landing animation yet. Events: Released, Landed(ScoreResult).
+├── Scripts/Simulation/ GymnastSimulation (own assembly, pure C#): planar pendulum + pump, release (v = ω × r),
+│                       projectile flight with spin, touchdown. Own clock, deterministic, unit-tested.
+├── Scripts/Gameplay/   GymnastController: input in Update, Step in FixedUpdate, scores with ScoreJudge, plays the
+│                       landing animation (coroutines: stick / step / fall). Events: Pumped, FullTurnCompleted,
+│                       Released, Landed(ScoreResult) after the animation. RoundFlow: R = restart.
+├── Scripts/Presentation/ GymnastView (draws CurrentPose), CameraFollow.
 ├── ScoreJudge.cs       Pure static C# scoring: ScoreResult struct, D + E, deduction constants and landing tolerances.
 ├── SwingHUD.cs         OnGUI prototype HUD: PERFECT/GOOD/OK/MISS, giant swing counter, controls hint, score card.
 └── Main.unity          The only scene.
 ```
 
 Scene hierarchy (Main.unity), real scale in metres, built by `Tools → Gymnast → Build 3D Scene` (`Assets/Editor/GymnastSceneBuilder.cs`, safe to re-run):
-- `Bar` at (0, 2.6, 0), the swing pivot: has `GymnastSwing` (armLength 1.1, pumpStrength 1.6) and `GymnastDismount` (groundY 0). Its child `Gymnast` is a 1.7 m capsule at local (0, -1.1, 0).
-- `BarVisual`: the visible bar, cylinder along Z (not parented to `Bar`, which rotates). `Apparatus` holds the two uprights.
-- `Ground`: the landing mat, top surface at y = 0. `Floor`: plane below it.
-- `HUD`: has `SwingHUD`, with Swing and Dismount fields pointing to `Bar`.
+- `Bar` at (0, 2.6, 0), the swing pivot (does not rotate): has `GymnastController` (settings: armLength 1.1, pumpStrength 1.6, groundY 0) and `RoundFlow`.
+- `Gymnast`: root-level 1.7 m capsule with `GymnastView`, placed from the controller's pose each frame.
+- `BarVisual`: the visible bar, cylinder along Z. `Apparatus` holds the two uprights.
+- `LandingMat`: top surface at y = 0. `Floor`: plane below it.
+- `HUD`: has `SwingHUD`, with its Gymnast field pointing to the `GymnastController` on `Bar`.
 - `Main Camera`: perspective, FOV 40, with `CameraFollow` (side view, about 25° off axis, follows between bar and gymnast).
 - Rendering: URP, one pipeline asset `Assets/Settings/URP-Gymnast` (all quality levels use the Graphics default). URP Lit materials in `Assets/Materials`.
 
@@ -65,7 +68,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
 2. ~~Data model and D-score~~ done: `Assets/Scripts/Rules/` (own assembly) with EditMode tests.
 3. **3D migration** (in progress, plan approved by Bora), one commit per step, game playable after each:
    1. ~~URP, perspective camera, real-scale 3D scene, capsule figure~~ done.
-   2. Split into `GymnastSimulation` (pure C#, planar physics, unit-tested), `GymnastController` (input + events), `GymnastView` (presentation), `RoundFlow` (restart). Add an animated landing in `GymnastController`.
+   2. ~~Split into simulation, controller, view and round flow, with an animated landing~~ done.
    3. Articulated primitive figure driven by a `BodyPose` struct (Humanoid bone names, so a Mixamo view can replace it later). Body shape with angular momentum (L = I·ω).
    4. Twist in flight: hold to twist, rate depends on body shape.
    5. Regrasp: catch window around the bar, tangential velocity kept, grip from twist angle.
@@ -74,6 +77,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
    - Controls: Space = pump, Enter = release / catch, A = tuck (hold), S = pike (hold), D = twist (hold).
 4. Element recognition: detect which element was performed from swing and flight data.
 5. Replace the placeholder `ScoreJudge` values with the data-driven rules. Add unit tests for `ScoreJudge`.
+   - Landing deductions must follow the Code of Points (Art. 9.4): small step 0.1 each, large step 0.3, fall 1.0, max 1.0 for steps. The placeholder takes 0.3 for a small step; fix this here. Until then the stick / step / fall thresholds stay in `ScoreJudge` and `GymnastController` only classifies with them.
 6. Measure execution faults (bent arms or knees, open legs) from the figure's joint angles.
 7. Later: gymnast attributes, mobile touch controls, and a real UI (replace OnGUI).
 
