@@ -61,7 +61,6 @@ Assets/
 - **Gameplay decoupled from presentation.** `GymnastSwing` and `GymnastDismount` expose C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), so audio, effects or a new UI can be added without touching the gameplay code.
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
 - **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
-- **Landing animations match the score.** A small step visibly steps out and straightens up, and a fall tips over, using coroutines. The score card appears only after the animation finishes.
 - **Input System package** for keyboard, mouse and touch input.
 
 ## Running the project

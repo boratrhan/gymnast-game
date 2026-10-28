@@ -29,8 +29,8 @@ Gameplay loop: swing → pump with timed taps → giant swings → release → i
 Assets/
 ├── GymnastSwing.cs     Pendulum physics + tap-to-pump timing. Events: Pumped(quality), FullTurnCompleted(turns).
 │                       Exposes AngleDegrees, AngularVelocity, FullTurns, MissCount.
-├── GymnastDismount.cs  Release (v = ω × r), projectile flight, in-air spin, landing detection,
-│                       landing animations via coroutines (stuck / small step / fall). Events: Released, Landed(ScoreResult).
+├── GymnastDismount.cs  Release (v = ω × r), projectile flight, in-air spin, landing detection.
+│                       Landing snaps to a final pose (standing or lying); no landing animation yet. Events: Released, Landed(ScoreResult).
 ├── ScoreJudge.cs       Pure static C# scoring: ScoreResult struct, D + E, deduction constants and landing tolerances.
 ├── SwingHUD.cs         OnGUI prototype HUD: PERFECT/GOOD/OK/MISS, giant swing counter, controls hint, score card.
 └── Main.unity          The only scene.
@@ -60,12 +60,21 @@ Current scoring placeholder (to be replaced by Code of Points data):
 
 ## Next steps (planned order)
 
-1. **Analyse the FIG Code of Points** (high bar section) that Bora provides. Extract elements (name, difficulty letter and value, element group, required rotations and saltos, release or dismount) and execution deductions into a structured data file. Do not copy the rulebook text into the game. Use the rules as mechanics only. Do not use the FIG logo or name as branding.
-2. Design the data model: `ElementDefinition` ScriptableObject, `DeductionRule`, element groups, and a routine or composition model.
-3. Element recognition: detect which element was performed from swing and flight data.
-4. Replace the placeholder `ScoreJudge` values with the data-driven rules. Add unit tests for `ScoreJudge`.
-5. Articulated figure (simple ragdoll skeleton first) so execution faults (bent arms or knees, open legs) are measured from joint angles.
-6. Later: gymnast attributes, mobile touch controls, and a real UI (replace OnGUI).
+1. ~~Code of Points analysis~~ done: `Assets/Data/HighBar/` (elements, deductions, composition). Do not copy the rulebook text into the game. Use the rules as mechanics only. Do not use the FIG logo or name as branding.
+2. ~~Data model and D-score~~ done: `Assets/Scripts/Rules/` (own assembly) with EditMode tests.
+3. **3D migration** (in progress, plan approved by Bora), one commit per step, game playable after each:
+   1. URP, perspective camera, real-scale 3D scene (bar 2.6 m above the mat top), capsule figure.
+   2. Split into `GymnastSimulation` (pure C#, planar physics, unit-tested), `GymnastController` (input + events), `GymnastView` (presentation), `RoundFlow` (restart). Add an animated landing in `GymnastController`.
+   3. Articulated primitive figure driven by a `BodyPose` struct (Humanoid bone names, so a Mixamo view can replace it later). Body shape with angular momentum (L = I·ω).
+   4. Twist in flight: hold to twist, rate depends on body shape.
+   5. Regrasp: catch window around the bar, tangential velocity kept, grip from twist angle.
+   6. On-bar turns and hops (tap = ½ turn, hold = 1/1 near handstand).
+   - Physics stays planar (XY plane, bar along Z); twist ψ about the body's long axis is the only extra rotation. No free 3D physics.
+   - Controls: Space = pump, Enter = release / catch, A = tuck (hold), S = pike (hold), D = twist (hold).
+4. Element recognition: detect which element was performed from swing and flight data.
+5. Replace the placeholder `ScoreJudge` values with the data-driven rules. Add unit tests for `ScoreJudge`.
+6. Measure execution faults (bent arms or knees, open legs) from the figure's joint angles.
+7. Later: gymnast attributes, mobile touch controls, and a real UI (replace OnGUI).
 
 ## Practical notes
 
@@ -73,7 +82,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
   ```bash
   "/Applications/Unity/Hub/Editor/6000.6.7f1/Unity.app/Contents/MacOS/Unity" -projectPath ~/UnityProjects/GymnastGame
   ```
-- **Compile errors:** check `~/Library/Logs/Unity/Editor.log`.
+- **Compile errors:** check `Logs/Editor.log` in the project. `~/Library/Logs/Unity/Editor.log` only has the startup lines; Unity 6.6 moves logging to the project folder after that.
 - **IDE:** JetBrains Rider (non-commercial licence) is set as the external script editor.
 - **Input:** the project uses the **Input System package** (Active Input Handling = Input System Package (New)). Use `UnityEngine.InputSystem`, not the old `Input` class.
 - **Unity pitfalls for Bora:** changes made in Play mode are lost when you stop. The Game view must be clicked to receive keyboard input. Dragging a script onto the Hierarchy creates a new GameObject; use Add Component instead.
