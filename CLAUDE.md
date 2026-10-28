@@ -85,3 +85,4 @@ Current scoring placeholder (to be replaced by Code of Points data):
 - Small commits with clear English messages, e.g. `Add dismount, flight and D+E scoring`.
 - Save the scene in Unity (File → Save) before committing.
 - Update README.md when gameplay, controls or architecture change.
+- **Never push without Bora's confirmation that the tests pass in the Test Runner.** Commit only, then ask him to run `Window → General → Test Runner → EditMode → Run All` and push after he confirms. A clean compile in `Logs/Editor.log` is not enough: tests cannot be run from the command line while the editor is open.
