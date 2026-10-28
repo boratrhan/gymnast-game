@@ -1,4 +1,18 @@
+using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>One item of the score breakdown, e.g. +1.0 "1 salto" or -0.3 "small step".</summary>
+public readonly struct ScoreLine
+{
+    public readonly float Points;   // positive for difficulty, negative for a deduction
+    public readonly string Label;
+
+    public ScoreLine(float points, string label)
+    {
+        Points = points;
+        Label = label;
+    }
+}
 
 /// <summary>The judges' verdict for one routine.</summary>
 public readonly struct ScoreResult
@@ -8,14 +22,29 @@ public readonly struct ScoreResult
     public readonly int AirFlips;
     public readonly string LandingLabel;
 
+    /// <summary>What added to D, one line per item. The lines add up to Difficulty.</summary>
+    public readonly IReadOnlyList<ScoreLine> DifficultyLines;
+
+    /// <summary>Each E deduction on its own line. 10 plus the lines gives Execution (never below 0).</summary>
+    public readonly IReadOnlyList<ScoreLine> ExecutionLines;
+
     public float Total => Difficulty + Execution;
 
-    public ScoreResult(float difficulty, float execution, int airFlips, string landingLabel)
+    public ScoreResult(int airFlips, string landingLabel,
+        IReadOnlyList<ScoreLine> difficultyLines, IReadOnlyList<ScoreLine> executionLines)
     {
-        Difficulty = difficulty;
-        Execution = execution;
         AirFlips = airFlips;
         LandingLabel = landingLabel;
+        DifficultyLines = difficultyLines;
+        ExecutionLines = executionLines;
+
+        float difficulty = 0f;
+        foreach (var line in difficultyLines) difficulty += line.Points;
+        float execution = ScoreJudge.ExecutionStart;
+        foreach (var line in executionLines) execution += line.Points;
+
+        Difficulty = difficulty;
+        Execution = Mathf.Max(execution, 0f);
     }
 }
 
@@ -26,6 +55,8 @@ public readonly struct ScoreResult
 /// </summary>
 public static class ScoreJudge
 {
+    public const float ExecutionStart = 10f;
+
     // Difficulty values
     public const float GiantSwingValue = 0.5f;
     public const float AirFlipValue = 1.0f;
@@ -45,9 +76,19 @@ public static class ScoreJudge
     public static ScoreResult Evaluate(int giantSwings, float airRotationDegrees, float landingErrorDegrees, int misses)
     {
         int airFlips = Mathf.FloorToInt(Mathf.Abs(airRotationDegrees) / 360f);
-        float difficulty = giantSwings * GiantSwingValue + airFlips * AirFlipValue;
 
-        float execution = 10f - Mathf.Min(misses * MissDeduction, MaxMissDeduction);
+        var difficulty = new List<ScoreLine>();
+        if (giantSwings > 0)
+            difficulty.Add(new ScoreLine(giantSwings * GiantSwingValue, Count(giantSwings, "giant swing", "giant swings")));
+        if (airFlips > 0)
+            difficulty.Add(new ScoreLine(airFlips * AirFlipValue, Count(airFlips, "salto", "saltos")));
+
+        var execution = new List<ScoreLine>();
+        if (misses > 0)
+        {
+            float missDeduction = Mathf.Min(misses * MissDeduction, MaxMissDeduction);
+            execution.Add(new ScoreLine(-missDeduction, Count(misses, "missed pump", "missed pumps")));
+        }
 
         string label;
         if (landingErrorDegrees <= StuckTolerance)
@@ -57,14 +98,16 @@ public static class ScoreJudge
         else if (landingErrorDegrees <= StepTolerance)
         {
             label = "Small step";
-            execution -= SmallStepDeduction;
+            execution.Add(new ScoreLine(-SmallStepDeduction, "small step"));
         }
         else
         {
             label = "Fall";
-            execution -= FallDeduction;
+            execution.Add(new ScoreLine(-FallDeduction, "fall"));
         }
 
-        return new ScoreResult(difficulty, Mathf.Max(execution, 0f), airFlips, label);
+        return new ScoreResult(airFlips, label, difficulty, execution);
     }
+
+    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
 }

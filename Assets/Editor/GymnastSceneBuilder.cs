@@ -59,7 +59,7 @@ public static class GymnastSceneBuilder
         SetReference(view, "controller", controller);
         SetReference(view, "body", gymnast);
 
-        var hud = Object.FindFirstObjectByType<SwingHUD>();
+        var hud = Object.FindAnyObjectByType<SwingHUD>();
         if (hud != null) SetReference(hud, "gymnast", controller);
 
         var steel = GetMaterial("Bar", new Color(0.78f, 0.80f, 0.83f), 0.9f, 0.8f);
@@ -117,7 +117,7 @@ public static class GymnastSceneBuilder
 
     private static void SetUpLight()
     {
-        var light = Object.FindFirstObjectByType<Light>();
+        var light = Object.FindAnyObjectByType<Light>();
         if (light == null || light.type != LightType.Directional) return;
         Undo.RecordObject(light.transform, "Light");
         Undo.RecordObject(light, "Light");

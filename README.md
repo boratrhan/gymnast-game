@@ -36,6 +36,8 @@ Modelled on the structure of artistic gymnastics scoring:
 
 A landing within 15° of upright is a **stuck landing**, with no deduction.
 
+The score card lists every item: what added to D and each E deduction on its own line.
+
 The game still uses these placeholder values. A data-driven D-score engine based on the real high bar rules is built and unit-tested (see below), and will replace them once elements are recognised in play.
 
 ## Technical overview
