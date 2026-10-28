@@ -1,0 +1,51 @@
+{
+  "apparatus": "HB",
+  "codeCycle": "2025-2028",
+  "fieldNotes": [
+    "Values are letters (A-J); elements.json/valueScale turns them into points.",
+    "countingElements: best N elements (dismount not included), at most maxPerGroup from the same group.",
+    "groupBonuses: high if the best counting element of the group is at least minValueForHigh, otherwise low. The dismount group bonus equals the dismount value.",
+    "connections: first/second are element kinds in performed order. symmetric = the two minimum values may be swapped (the 'or vice versa' in the table). The highest matching rule applies. Flight followed by a group I/III element is our reading of 'or vice versa' (game-interpretation).",
+    "flightLimit: flights after freeFlights (in performed order) get no value unless two flights of at least unlockMinValue were directly connected.",
+    "tieBreak: order used to choose between selections of counting elements.",
+    "source: 'code' = taken from the Code of Points; 'game-interpretation' = our own decision."
+  ],
+  "pending": [],
+  "countingElements": 7,
+  "maxPerGroup": 4,
+  "dismountGroup": 4,
+  "groupBonuses": [
+    { "group": 1, "minValueForHigh": "A", "high": 0.5, "low": 0.5 },
+    { "group": 2, "minValueForHigh": "D", "high": 0.5, "low": 0.3 },
+    { "group": 3, "minValueForHigh": "D", "high": 0.5, "low": 0.3 }
+  ],
+  "connections": [
+    { "first": "release", "second": "release", "minFirst": "C", "minSecond": "D", "symmetric": true, "points": 0.1, "source": "code" },
+    { "first": "release", "second": "release", "minFirst": "D", "minSecond": "D", "symmetric": false, "points": 0.1, "source": "code" },
+    { "first": "release", "second": "release", "minFirst": "D", "minSecond": "E", "symmetric": true, "points": 0.2, "source": "code" },
+    { "first": "swing", "second": "release", "minFirst": "D", "minSecond": "D", "symmetric": false, "points": 0.1, "source": "code" },
+    { "first": "swing", "second": "release", "minFirst": "D", "minSecond": "E", "symmetric": true, "points": 0.2, "source": "code" },
+    { "first": "inBar", "second": "release", "minFirst": "D", "minSecond": "D", "symmetric": false, "points": 0.1, "source": "code" },
+    { "first": "inBar", "second": "release", "minFirst": "D", "minSecond": "E", "symmetric": true, "points": 0.2, "source": "code" },
+    { "first": "release", "second": "swing", "minFirst": "D", "minSecond": "D", "symmetric": false, "points": 0.1, "source": "game-interpretation" },
+    { "first": "release", "second": "swing", "minFirst": "D", "minSecond": "E", "symmetric": true, "points": 0.2, "source": "game-interpretation" },
+    { "first": "release", "second": "inBar", "minFirst": "D", "minSecond": "D", "symmetric": false, "points": 0.1, "source": "game-interpretation" },
+    { "first": "release", "second": "inBar", "minFirst": "D", "minSecond": "E", "symmetric": true, "points": 0.2, "source": "game-interpretation" }
+  ],
+  "stickBonus": { "minValue": "C", "points": 0.1 },
+  "flightLimit": { "freeFlights": 4, "unlockMinValue": "C" },
+  "tieBreak": [
+    { "step": "difficulty", "source": "code" },
+    { "step": "groupBonus", "source": "code" },
+    { "step": "connection", "source": "game-interpretation" }
+  ],
+  "shortExercise": [
+    { "elements": 0, "deduction": 10.0 },
+    { "elements": 1, "deduction": 7.0 },
+    { "elements": 2, "deduction": 6.0 },
+    { "elements": 3, "deduction": 5.0 },
+    { "elements": 4, "deduction": 4.0 },
+    { "elements": 5, "deduction": 3.0 },
+    { "elements": 6, "deduction": 0.0 }
+  ]
+}

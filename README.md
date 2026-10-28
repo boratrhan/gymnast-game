@@ -36,6 +36,8 @@ Modelled on the structure of artistic gymnastics scoring:
 
 A landing within 15° of upright is a **stuck landing**, with no deduction.
 
+The game still uses these placeholder values. A data-driven D-score engine based on the real high bar rules is built and unit-tested (see below), and will replace them once elements are recognised in play.
+
 ## Technical overview
 
 ```
@@ -44,9 +46,12 @@ Assets/
 ├── GymnastDismount.cs  Release, projectile flight, in-air rotation, landing
 ├── ScoreJudge.cs       D + E scoring rules (pure C#, no Unity dependencies)
 ├── SwingHUD.cs         On-screen feedback, controls and score card
-└── Data/HighBar/
-    ├── elements.json   High bar element catalogue: 131 elements with value, group, family, saltos, twists, shape
-    └── deductions.json Execution deductions as measurable rules (angle, count or event bands)
+├── Data/HighBar/
+│   ├── elements.json     High bar element catalogue: 131 elements with value, group, family, saltos, twists, shape
+│   ├── deductions.json   Execution deductions as measurable rules (angle, count or event bands)
+│   └── composition.json  D-score composition: counting elements, group bonuses, connections, stick bonus, flight limit
+├── Scripts/Rules/      D-score engine (own assembly, pure C#): catalogue, routine, DScoreCalculator
+└── Tests/EditMode/     NUnit tests for the D-score engine, with routines calculated by hand
 ```
 
 **Design decisions**
@@ -55,6 +60,7 @@ Assets/
 - **Physically consistent release.** On release, the gymnast's velocity is the tangential velocity of the swing (`v = ω × r`), and the body keeps rotating at the swing's angular velocity. Releasing at the right point in the swing really does matter.
 - **Gameplay decoupled from presentation.** `GymnastSwing` and `GymnastDismount` expose C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), so audio, effects or a new UI can be added without touching the gameplay code.
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
+- **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
 - **Landing animations match the score.** A small step visibly steps out and straightens up, and a fall tips over, using coroutines. The score card appears only after the animation finishes.
 - **Input System package** for keyboard, mouse and touch input.
 
@@ -73,7 +79,7 @@ The long-term goal is a gymnastics game judged by **real artistic gymnastics rul
 - [ ] Load the catalogue in game and replace the placeholder scoring values
 - [ ] Release moves and dismounts recognised as named elements
 - [ ] Articulated human figure, so execution faults (bent knees, bent arms, open legs) are measured from body angles
-- [ ] Connection bonuses and composition requirements
+- [x] D-score engine: best counting elements, group bonuses, connection bonuses, stick bonus, unit-tested
 - [ ] Gymnast attributes such as strength, rotation power and stamina
 - [ ] Mobile touch controls
 - [ ] Unit tests for `ScoreJudge`
