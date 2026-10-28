@@ -43,7 +43,10 @@ Assets/
 ├── GymnastSwing.cs     Pendulum physics and tap-to-pump timing
 ├── GymnastDismount.cs  Release, projectile flight, in-air rotation, landing
 ├── ScoreJudge.cs       D + E scoring rules (pure C#, no Unity dependencies)
-└── SwingHUD.cs         On-screen feedback, controls and score card
+├── SwingHUD.cs         On-screen feedback, controls and score card
+└── Data/HighBar/
+    ├── elements.json   High bar element catalogue: 131 elements with value, group, family, saltos, twists, shape
+    └── deductions.json Execution deductions as measurable rules (angle, count or event bands)
 ```
 
 **Design decisions**
@@ -66,7 +69,8 @@ Assets/
 
 The long-term goal is a gymnastics game judged by **real artistic gymnastics rules**:
 
-- [ ] Data-driven element catalogue (ScriptableObjects): name, difficulty value, element group
+- [x] High bar element catalogue and execution deductions as data files
+- [ ] Load the catalogue in game and replace the placeholder scoring values
 - [ ] Release moves and dismounts recognised as named elements
 - [ ] Articulated human figure, so execution faults (bent knees, bent arms, open legs) are measured from body angles
 - [ ] Connection bonuses and composition requirements
