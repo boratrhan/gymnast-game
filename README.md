@@ -46,11 +46,13 @@ Assets/
 ├── GymnastDismount.cs  Release, projectile flight, in-air rotation, landing
 ├── ScoreJudge.cs       D + E scoring rules (pure C#, no Unity dependencies)
 ├── SwingHUD.cs         On-screen feedback, controls and score card
+├── Editor/             GymnastSceneBuilder: menu that builds the real-scale 3D scene
 ├── Data/HighBar/
 │   ├── elements.json     High bar element catalogue: 131 elements with value, group, family, saltos, twists, shape
 │   ├── deductions.json   Execution deductions as measurable rules (angle, count or event bands)
 │   └── composition.json  D-score composition: counting elements, group bonuses, connections, stick bonus, flight limit
 ├── Scripts/Rules/      D-score engine (own assembly, pure C#): catalogue, routine, DScoreCalculator
+├── Scripts/Presentation/ CameraFollow: perspective camera that follows the gymnast
 └── Tests/EditMode/     NUnit tests for the D-score engine, with routines calculated by hand
 ```
 
@@ -61,6 +63,7 @@ Assets/
 - **Gameplay decoupled from presentation.** `GymnastSwing` and `GymnastDismount` expose C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), so audio, effects or a new UI can be added without touching the gameplay code.
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
 - **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
+- **Planar physics, 3D view.** Swing and flight are simulated in one vertical plane, as on a real high bar, and shown in a real-scale 3D scene (bar 2.6 m above the mat) with the Universal Render Pipeline and a following perspective camera.
 - **Input System package** for keyboard, mouse and touch input.
 
 ## Running the project

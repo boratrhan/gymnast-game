@@ -36,12 +36,13 @@ Assets/
 └── Main.unity          The only scene.
 ```
 
-Scene hierarchy (Main.unity):
-- `Bar` at (0, 2, 0): has `GymnastSwing` and `GymnastDismount`. Its child `Gymnast` is a capsule at local (0, -1.2, 0), scale (0.4, 1, 0.4).
-- `BarVisual`: cylinder showing the bar (not parented to Bar).
-- `Ground`: cube at (0, -2.5, 0), scale (20, 1, 1). The top surface is y = -2, matching `GymnastDismount.groundY`.
+Scene hierarchy (Main.unity), real scale in metres, built by `Tools → Gymnast → Build 3D Scene` (`Assets/Editor/GymnastSceneBuilder.cs`, safe to re-run):
+- `Bar` at (0, 2.6, 0), the swing pivot: has `GymnastSwing` (armLength 1.1, pumpStrength 1.6) and `GymnastDismount` (groundY 0). Its child `Gymnast` is a 1.7 m capsule at local (0, -1.1, 0).
+- `BarVisual`: the visible bar, cylinder along Z (not parented to `Bar`, which rotates). `Apparatus` holds the two uprights.
+- `Ground`: the landing mat, top surface at y = 0. `Floor`: plane below it.
 - `HUD`: has `SwingHUD`, with Swing and Dismount fields pointing to `Bar`.
-- `Main Camera`: orthographic, size 4, at (0, 1.5, -8).
+- `Main Camera`: perspective, FOV 40, with `CameraFollow` (side view, about 25° off axis, follows between bar and gymnast).
+- Rendering: URP, one pipeline asset `Assets/Settings/URP-Gymnast` (all quality levels use the Graphics default). URP Lit materials in `Assets/Materials`.
 
 Controls: Space or left click = pump, Enter or right click = release, R = restart (scene must be in Build Profiles → Scene List).
 
@@ -63,7 +64,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
 1. ~~Code of Points analysis~~ done: `Assets/Data/HighBar/` (elements, deductions, composition). Do not copy the rulebook text into the game. Use the rules as mechanics only. Do not use the FIG logo or name as branding.
 2. ~~Data model and D-score~~ done: `Assets/Scripts/Rules/` (own assembly) with EditMode tests.
 3. **3D migration** (in progress, plan approved by Bora), one commit per step, game playable after each:
-   1. URP, perspective camera, real-scale 3D scene (bar 2.6 m above the mat top), capsule figure.
+   1. ~~URP, perspective camera, real-scale 3D scene, capsule figure~~ done.
    2. Split into `GymnastSimulation` (pure C#, planar physics, unit-tested), `GymnastController` (input + events), `GymnastView` (presentation), `RoundFlow` (restart). Add an animated landing in `GymnastController`.
    3. Articulated primitive figure driven by a `BodyPose` struct (Humanoid bone names, so a Mixamo view can replace it later). Body shape with angular momentum (L = I·ω).
    4. Twist in flight: hold to twist, rate depends on body shape.
