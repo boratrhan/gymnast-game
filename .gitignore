@@ -41,3 +41,7 @@ crashlytics-buildid.txt
 
 # macOS
 .DS_Store
+
+# Unity scene recovery copies
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta

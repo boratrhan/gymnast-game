@@ -12,9 +12,7 @@
     "family: special repetition group; families[].maxPerExercise is the limit per family. Empty = no family.",
     "needsReview: value derived by us or still open; reviewNote says why."
   ],
-  "pending": [
-    "handstandCategory of I.27, III.40 and III.41 not decided yet (see needsReview)."
-  ],
+  "pending": [],
   "families": [
     {
       "family": "markelov",
@@ -393,8 +391,8 @@
       "overBar": false,
       "handsLeaveBar": false,
       "handstandCategory": "strict",
-      "needsReview": true,
-      "reviewNote": "handstandCategory strict or lenient: not decided yet.",
+      "needsReview": false,
+      "reviewNote": "",
       "variants": []
     },
     {
@@ -805,7 +803,7 @@
       "name": "Walstrom",
       "description": "Back uprise and straight hecht with 3/2 turn to hang",
       "kind": "release",
-      "family": "tkatchev",
+      "family": "markelov",
       "saltos": 0,
       "twists": 1.5,
       "shape": "straight",
@@ -813,8 +811,8 @@
       "overBar": false,
       "handsLeaveBar": true,
       "handstandCategory": "none",
-      "needsReview": true,
-      "reviewNote": "Family tkatchev as given by Bora; the table lists Walstrom as a hecht from back uprise (Markelov type).",
+      "needsReview": false,
+      "reviewNote": "",
       "variants": []
     },
     {
@@ -1871,9 +1869,9 @@
       "direction": "backward",
       "overBar": false,
       "handsLeaveBar": true,
-      "handstandCategory": "strict",
-      "needsReview": true,
-      "reviewNote": "handstandCategory strict or lenient: not decided yet.",
+      "handstandCategory": "lenient",
+      "needsReview": false,
+      "reviewNote": "",
       "variants": []
     },
     {
@@ -1891,9 +1889,9 @@
       "direction": "backward",
       "overBar": false,
       "handsLeaveBar": true,
-      "handstandCategory": "strict",
-      "needsReview": true,
-      "reviewNote": "handstandCategory strict or lenient: not decided yet.",
+      "handstandCategory": "lenient",
+      "needsReview": false,
+      "reviewNote": "",
       "variants": []
     },
     {

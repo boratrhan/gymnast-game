@@ -11,8 +11,7 @@
     "source: 'code' = taken from the Code of Points; 'game-interpretation' = our own measurable version of a rule that has no numeric threshold."
   ],
   "pending": [
-    "lowAmplitudeFlight: the 20 cm 'distinct rise' margin above the bar is a starting value to tune in play.",
-    "handstandCategory of I.27, III.40 and III.41 not decided yet (see needsReview in elements.json)."
+    "lowAmplitudeFlight: the 20 cm 'distinct rise' margin above the bar is a starting value to tune in play."
   ],
   "severities": [
     { "severity": "small", "points": 0.1 },
