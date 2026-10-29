@@ -8,7 +8,7 @@
     "notRecognized: the element also loses its difficulty value (NR).",
     "perOccurrence: deducted each time the error happens. capGroup + maxTotal: shared cap across rules.",
     "appliesTo: optional element filter, e.g. handstandCategory=strict.",
-    "source: 'code' = taken from the Code of Points; 'game-interpretation' = our own measurable version of a rule that has no numeric threshold."
+    "source: 'code' = taken from the Code of Points; 'game-interpretation' = our own measurable version of a rule that has no numeric threshold. A band can carry its own source when only that band is our decision."
   ],
   "pending": [
     "lowAmplitudeFlight: the 20 cm 'distinct rise' margin above the bar is a starting value to tune in play."
@@ -101,12 +101,12 @@
       "scope": "general",
       "source": "code",
       "category": "technical",
-      "description": "Twist short of the element definition",
+      "description": "Twist short of or beyond the element definition. Up to 5° is not deducted (game-interpretation: a measured twist is never exactly 0°).",
       "measure": "angleDeg",
       "perOccurrence": true,
       "enabled": true,
       "bands": [
-        { "above": 0, "unit": "deg", "deduction": 0.1, "notRecognized": false },
+        { "above": 5, "unit": "deg", "deduction": 0.1, "notRecognized": false, "source": "game-interpretation" },
         { "above": 30, "unit": "deg", "deduction": 0.3, "notRecognized": false },
         { "above": 60, "unit": "deg", "deduction": 0.5, "notRecognized": false },
         { "above": 90, "unit": "deg", "deduction": 0.5, "notRecognized": true }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GymnastGame.Rules;
 using UnityEngine;
 
 /// <summary>One item of the score breakdown, e.g. +1.0 "1 salto" or -0.3 "small step".</summary>
@@ -57,9 +58,10 @@ public static class ScoreJudge
 {
     public const float ExecutionStart = 10f;
 
-    // Difficulty values
+    // Difficulty values (placeholders until elements are recognised)
     public const float GiantSwingValue = 0.5f;
     public const float AirFlipValue = 1.0f;
+    public const float FullTwistValue = 0.5f;
 
     // Execution deductions (from a starting 10.0)
     public const float MissDeduction = 0.1f;
@@ -73,7 +75,12 @@ public static class ScoreJudge
 
     public static bool IsFall(float landingErrorDegrees) => landingErrorDegrees > StepTolerance;
 
-    public static ScoreResult Evaluate(int giantSwings, float airRotationDegrees, float landingErrorDegrees, int misses)
+    /// <summary>
+    /// Scores the routine. The twist deduction comes from the data-driven incompleteTwist rule
+    /// (deductions.json); without a rule, the twist is not deducted.
+    /// </summary>
+    public static ScoreResult Evaluate(int giantSwings, float airRotationDegrees, float landingErrorDegrees, int misses,
+        int fullTwists = 0, float twistErrorDegrees = 0f, DeductionRule incompleteTwist = null)
     {
         int airFlips = Mathf.FloorToInt(Mathf.Abs(airRotationDegrees) / 360f);
 
@@ -82,12 +89,21 @@ public static class ScoreJudge
             difficulty.Add(new ScoreLine(giantSwings * GiantSwingValue, Count(giantSwings, "giant swing", "giant swings")));
         if (airFlips > 0)
             difficulty.Add(new ScoreLine(airFlips * AirFlipValue, Count(airFlips, "salto", "saltos")));
+        if (fullTwists > 0)
+            difficulty.Add(new ScoreLine(fullTwists * FullTwistValue, Count(fullTwists, "full twist", "full twists")));
 
         var execution = new List<ScoreLine>();
         if (misses > 0)
         {
             float missDeduction = Mathf.Min(misses * MissDeduction, MaxMissDeduction);
             execution.Add(new ScoreLine(-missDeduction, Count(misses, "missed pump", "missed pumps")));
+        }
+
+        if (incompleteTwist != null)
+        {
+            var twist = incompleteTwist.Evaluate(twistErrorDegrees, "deg");
+            if (twist.Points > 0m)
+                execution.Add(new ScoreLine(-(float)twist.Points, $"twist {twistErrorDegrees:F0}° off"));
         }
 
         string label;

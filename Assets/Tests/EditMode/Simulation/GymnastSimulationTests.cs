@@ -28,6 +28,7 @@ namespace GymnastGame.Simulation.Tests
         private static GymnastCommands Pump => new GymnastCommands(pump: true, release: false);
         private static GymnastCommands Release => new GymnastCommands(pump: false, release: true);
         private static GymnastCommands InShape(BodyShape shape) => new GymnastCommands(false, false, shape);
+        private static GymnastCommands Twisting(BodyShape shape) => new GymnastCommands(false, false, shape, twist: true);
 
         // Energy per unit mass of a point pendulum, measured from the bottom of the swing.
         private static float Energy(GymnastSimulation sim)
@@ -198,6 +199,61 @@ namespace GymnastGame.Simulation.Tests
 
             sim.Step(Dt, InShape(BodyShape.Tuck));
             Assert.AreEqual(0f, BodyPose.MaxDifference(sim.Pose.Joints, tuck), 1e-3f);
+        }
+
+        [Test]
+        public void Twist_StraightReachesTheMaximumRate()
+        {
+            var sim = ReleasedUpwards();
+
+            for (int i = 0; i < 15; i++)    // 0.3 s: spin-up and arms on the chest are both done
+                sim.Step(Dt, Twisting(BodyShape.Straight));
+
+            Assert.AreEqual(GymnastPhase.Flying, sim.Phase);
+            Assert.AreEqual(3f * 2f * Mathf.PI, sim.TwistAngularVelocity, 0.01f * 3f * 2f * Mathf.PI);   // 3 turns per second
+        }
+
+        [Test]
+        public void Twist_InATuckIsSlowerByTheInertiaRatio()
+        {
+            var sim = ReleasedUpwards();
+
+            for (int i = 0; i < 15; i++)
+                sim.Step(Dt, Twisting(BodyShape.Tuck));
+
+            float twistPose = body.Evaluate(body.Pose("twist")).TwistInertia;
+            float tuck = body.Evaluate(body.ShapePose(BodyShape.Tuck)).TwistInertia;
+            float straightRate = 3f * 2f * Mathf.PI;
+            Assert.AreEqual(straightRate * twistPose / tuck, sim.TwistAngularVelocity, 0.01f * straightRate);   // ω = H / I_long
+        }
+
+        [Test]
+        public void Twist_StopsAfterLettingGo()
+        {
+            var sim = ReleasedUpwards();
+            for (int i = 0; i < 10; i++)
+                sim.Step(Dt, Twisting(BodyShape.Straight));
+            for (int i = 0; i < 10; i++)    // 0.2 s, longer than the stop time
+                sim.Step(Dt, InShape(BodyShape.Straight));
+
+            float twistAfterStop = sim.Pose.TwistDegrees;
+            sim.Step(Dt, InShape(BodyShape.Straight));
+
+            Assert.AreEqual(0f, sim.TwistAngularVelocity);
+            Assert.AreEqual(twistAfterStop, sim.Pose.TwistDegrees);
+            Assert.Greater(twistAfterStop, 90f, "it twisted while D was held");
+        }
+
+        [TestCase(350f, 10f, 2)]
+        [TestCase(190f, 10f, 1)]
+        [TestCase(100f, 80f, 1)]
+        [TestCase(-170f, 10f, 1)]
+        [TestCase(725f, 5f, 4)]
+        [TestCase(0f, 0f, 0)]
+        public void TwistMath_MeasuresFromTheNearestHalfTwist(float twist, float error, int halfTwists)
+        {
+            Assert.AreEqual(error, TwistMath.ErrorFromHalfTwist(twist), 1e-3f);
+            Assert.AreEqual(halfTwists, TwistMath.NearestHalfTwists(twist));
         }
 
         [Test]

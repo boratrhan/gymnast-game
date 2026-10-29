@@ -18,14 +18,10 @@ public static class GymnastSceneBuilder
     private const float MatThickness = 0.2f;
     private const string MaterialFolder = "Assets/Materials";
     private const string BodyDataPath = "Assets/Data/Body/body.json";
+    private const string DeductionDataPath = "Assets/Data/HighBar/deductions.json";
 
-    // Figure widths and limb thicknesses in metres (the planar model only has lengths).
-    private const float ShoulderHalfWidth = 0.19f;
-    private const float HipHalfWidth = 0.09f;
-    private const float TrunkDepth = 0.22f, TrunkWidth = 0.32f;
-    private const float UpperArmThickness = 0.09f, ForearmThickness = 0.075f;
-    private const float ThighThickness = 0.14f, ShankThickness = 0.10f;
-    private const float HeadDiameter = 0.22f, HandDiameter = 0.08f, FootDiameter = 0.09f;
+    // The trunk is wider than it is deep; its radius in body.json is the average.
+    private const float TrunkDepthFactor = 0.8f, TrunkWidthFactor = 1.17f;
 
     [MenuItem("Tools/Gymnast/Build 3D Scene")]
     public static void Build()
@@ -52,6 +48,7 @@ public static class GymnastSceneBuilder
             return;
         }
         var body = BodyModel.FromJson(bodyData.text);
+        var deductionData = AssetDatabase.LoadAssetAtPath<TextAsset>(DeductionDataPath);
 
         var gymnast = gymnastObject.transform;
         if (gymnast.parent != null) Undo.SetTransformParent(gymnast, null, "Gymnast");
@@ -63,6 +60,7 @@ public static class GymnastSceneBuilder
         var controllerData = new SerializedObject(controller);
         controllerData.FindProperty("bar").objectReferenceValue = bar.transform;
         controllerData.FindProperty("bodyData").objectReferenceValue = bodyData;
+        controllerData.FindProperty("deductionData").objectReferenceValue = deductionData;
         controllerData.FindProperty("settings.pumpStrength").floatValue = 1.6f;  // tuned in play
         controllerData.FindProperty("settings.groundY").floatValue = 0f;
         controllerData.ApplyModifiedProperties();
@@ -130,31 +128,37 @@ public static class GymnastSceneBuilder
         var singlet = GetMaterial("Gymnast", new Color(0.80f, 0.12f, 0.15f), 0f, 0.4f);
         var pants = GetMaterial("Pants", new Color(0.92f, 0.92f, 0.94f), 0f, 0.3f);
         var skin = GetMaterial("Skin", new Color(0.87f, 0.68f, 0.55f), 0f, 0.3f);
+        var stripe = GetMaterial("Stripe", new Color(1f, 0.85f, 0.2f), 0f, 0.5f);
 
         var hips = Bone("Hips", gymnast.transform, Vector3.zero);
         var spine = Bone("Spine", hips, Vector3.zero);
+        float trunkDepth = 2f * body.TrunkRadius * TrunkDepthFactor;
+        float trunkWidth = 2f * body.TrunkRadius * TrunkWidthFactor;
         Visual(PrimitiveType.Capsule, spine, new Vector3(0f, body.TrunkLength / 2f, 0f),
-            new Vector3(TrunkDepth, body.TrunkLength / 2f, TrunkWidth), singlet);
+            new Vector3(trunkDepth, body.TrunkLength / 2f, trunkWidth), singlet);
+        // A stripe across the chest shows which way the gymnast faces, so the twist is visible.
+        Visual(PrimitiveType.Cube, spine, new Vector3(trunkDepth * 0.45f, body.TrunkLength * 0.65f, 0f),
+            new Vector3(0.03f, 0.07f, trunkWidth * 0.8f), stripe);
         var head = Bone("Head", spine, new Vector3(0f, body.TrunkLength, 0f));
-        Visual(PrimitiveType.Sphere, head, new Vector3(0f, body.HeadLength * 0.6f, 0f), Vector3.one * HeadDiameter, skin);
+        Visual(PrimitiveType.Sphere, head, new Vector3(0f, body.HeadLength * 0.6f, 0f), Vector3.one * 2f * body.HeadRadius, skin);
 
         foreach (var side in new[] { "Left", "Right" })
         {
             float z = side == "Left" ? 1f : -1f;
 
-            var upperArm = Bone(side + "UpperArm", spine, new Vector3(0f, body.TrunkLength, z * ShoulderHalfWidth));
-            Limb(upperArm, body.UpperArmLength, UpperArmThickness, singlet);
+            var upperArm = Bone(side + "UpperArm", spine, new Vector3(0f, body.TrunkLength, z * body.ShoulderHalfWidth));
+            Limb(upperArm, body.UpperArmLength, 2f * body.UpperArmRadius, singlet);
             var lowerArm = Bone(side + "LowerArm", upperArm, new Vector3(0f, -body.UpperArmLength, 0f));
-            Limb(lowerArm, body.ForearmLength, ForearmThickness, skin);
+            Limb(lowerArm, body.ForearmLength, 2f * body.ForearmRadius, skin);
             var hand = Bone(side + "Hand", lowerArm, new Vector3(0f, -body.ForearmLength, 0f));
-            Visual(PrimitiveType.Sphere, hand, new Vector3(0f, -body.HandLength / 2f, 0f), Vector3.one * HandDiameter, skin);
+            Visual(PrimitiveType.Sphere, hand, new Vector3(0f, -body.HandLength / 2f, 0f), Vector3.one * 2f * body.HandRadius, skin);
 
-            var upperLeg = Bone(side + "UpperLeg", hips, new Vector3(0f, 0f, z * HipHalfWidth));
-            Limb(upperLeg, body.ThighLength, ThighThickness, pants);
+            var upperLeg = Bone(side + "UpperLeg", hips, new Vector3(0f, 0f, z * body.HipHalfWidth));
+            Limb(upperLeg, body.ThighLength, 2f * body.ThighRadius, pants);
             var lowerLeg = Bone(side + "LowerLeg", upperLeg, new Vector3(0f, -body.ThighLength, 0f));
-            Limb(lowerLeg, body.ShankLength, ShankThickness, pants);
+            Limb(lowerLeg, body.ShankLength, 2f * body.ShankRadius, pants);
             var foot = Bone(side + "Foot", lowerLeg, new Vector3(0f, -body.ShankLength, 0f));
-            Visual(PrimitiveType.Sphere, foot, new Vector3(0f, -body.FootLength / 2f, 0f), Vector3.one * FootDiameter, skin);
+            Visual(PrimitiveType.Sphere, foot, new Vector3(0f, -body.FootLength / 2f, 0f), Vector3.one * 2f * body.FootRadius, skin);
         }
     }
 

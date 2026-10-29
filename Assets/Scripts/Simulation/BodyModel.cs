@@ -7,13 +7,15 @@ namespace GymnastGame.Simulation
     /// <summary>
     /// Key points of the body for one pose, in the body frame: origin at the hip joint,
     /// +y along the trunk towards the head, +x the way the chest faces.
-    /// Inertia is the moment of inertia about the centre of mass per kilogram of body mass
-    /// (mass cancels out in ω = L / I, so the simulation works per kilogram).
+    /// Inertia is the moment of inertia about the centre of mass for the salto (about an axis parallel to the bar);
+    /// TwistInertia is about the body's long axis through the centre of mass (for the twist).
+    /// Both are per kilogram of body mass: mass cancels out in ω = L / I, so the simulation works per kilogram.
     /// </summary>
     public readonly struct BodyGeometry
     {
         public Vector2 CentreOfMass { get; }
         public float Inertia { get; }
+        public float TwistInertia { get; }
         public Vector2 Shoulder { get; }
         public Vector2 HeadTop { get; }
         public Vector2 Elbow { get; }
@@ -21,11 +23,12 @@ namespace GymnastGame.Simulation
         public Vector2 Knee { get; }
         public Vector2 Sole { get; }        // bottom of the feet
 
-        public BodyGeometry(Vector2 centreOfMass, float inertia, Vector2 shoulder, Vector2 headTop,
+        public BodyGeometry(Vector2 centreOfMass, float inertia, float twistInertia, Vector2 shoulder, Vector2 headTop,
             Vector2 elbow, Vector2 grip, Vector2 knee, Vector2 sole)
         {
             CentreOfMass = centreOfMass;
             Inertia = inertia;
+            TwistInertia = twistInertia;
             Shoulder = shoulder;
             HeadTop = headTop;
             Elbow = elbow;
@@ -35,15 +38,16 @@ namespace GymnastGame.Simulation
         }
 
         /// <summary>
-        /// Lowest world height of any key point when the centre of mass is at comY
-        /// and the body frame is rotated by bodyAngle (radians, counter-clockwise).
+        /// Lowest world height of any key point when the centre of mass is at comY, the body frame is
+        /// rotated by bodyAngle (radians, counter-clockwise) and twisted by twistAngle (radians) about its
+        /// long axis. Twisting turns the forward offsets out of the plane, so they shrink by cos(twist).
         /// </summary>
-        public float LowestY(float comY, float bodyAngle)
+        public float LowestY(float comY, float bodyAngle, float twistAngle = 0f)
         {
-            float sin = Mathf.Sin(bodyAngle), cos = Mathf.Cos(bodyAngle);
+            float sin = Mathf.Sin(bodyAngle), cos = Mathf.Cos(bodyAngle), twist = Mathf.Cos(twistAngle);
             // A local function inside a struct cannot use the struct's own members, so copy them first.
             Vector2 centre = CentreOfMass;
-            float WorldY(Vector2 p) => comY + (p.x - centre.x) * sin + (p.y - centre.y) * cos;
+            float WorldY(Vector2 p) => comY + (p.x - centre.x) * twist * sin + (p.y - centre.y) * cos;
 
             float lowest = WorldY(Vector2.zero);    // hip joint
             lowest = Mathf.Min(lowest, WorldY(Shoulder));
@@ -65,12 +69,32 @@ namespace GymnastGame.Simulation
         private readonly Segment trunk, head, upperArm, forearm, hand, thigh, shank, foot;
         private readonly Dictionary<string, BodyPose> poses = new Dictionary<string, BodyPose>();
         private readonly float gripAlongHand;
+        private readonly float shoulderHalfWidth, hipHalfWidth;
 
         public float Height { get; }
         public float ShapeChangeTime { get; }
 
         /// <summary>Angular speed of every joint while changing shape, in degrees per second.</summary>
         public float JointSpeed { get; }
+
+        /// <summary>How fast HandsIn changes (0..1 per second), so the arms move in step with the joints.</summary>
+        public float HandsInSpeed { get; }
+
+        /// <summary>Twist angular momentum per kilogram at full twist: the maximum rate in the 'twist' pose.</summary>
+        public float MaxTwistMomentum { get; }
+        public float TwistSpinUpTime { get; }
+        public float TwistStopTime { get; }
+
+        public float ShoulderHalfWidth => shoulderHalfWidth;
+        public float HipHalfWidth => hipHalfWidth;
+        public float TrunkRadius => trunk.Radius;
+        public float HeadRadius => head.Radius;
+        public float UpperArmRadius => upperArm.Radius;
+        public float ForearmRadius => forearm.Radius;
+        public float HandRadius => hand.Radius;
+        public float ThighRadius => thigh.Radius;
+        public float ShankRadius => shank.Radius;
+        public float FootRadius => foot.Radius;
 
         public float TrunkLength => trunk.Length;
         public float HeadLength => head.Length;
@@ -86,6 +110,8 @@ namespace GymnastGame.Simulation
             Height = data.height;
             ShapeChangeTime = data.shapeChangeTime;
             gripAlongHand = data.gripAlongHand;
+            shoulderHalfWidth = data.shoulderHalfWidth * data.height;
+            hipHalfWidth = data.hipHalfWidth * data.height;
 
             var byName = new Dictionary<string, SegmentEntry>();
             foreach (var entry in data.segments) byName[entry.name] = entry;
@@ -105,10 +131,16 @@ namespace GymnastGame.Simulation
             foot = Load("foot");
 
             foreach (var pose in data.poses)
-                poses[pose.name] = new BodyPose(pose.shoulder, pose.elbow, pose.hip, pose.knee);
+                poses[pose.name] = new BodyPose(pose.shoulder, pose.elbow, pose.hip, pose.knee, pose.handsIn);
 
             float range = BodyPose.MaxDifference(ShapePose(BodyShape.Straight), ShapePose(BodyShape.Tuck));
             JointSpeed = range / ShapeChangeTime;
+            HandsInSpeed = 1f / ShapeChangeTime;
+
+            TwistSpinUpTime = data.twist.spinUpTime;
+            TwistStopTime = data.twist.stopTime;
+            float maxTwistRate = data.twist.maxTurnsPerSecond * 2f * Mathf.PI;
+            MaxTwistMomentum = maxTwistRate * Evaluate(Pose("twist")).TwistInertia;
         }
 
         public static BodyModel FromJson(string json) => new BodyModel(JsonUtility.FromJson<BodyFile>(json));
@@ -156,61 +188,81 @@ namespace GymnastGame.Simulation
             Vector2 ankle = knee + shankDir * shank.Length;
             Vector2 sole = ankle + shankDir * foot.Length;
 
-            // Centre of mass and moment of inertia: sum over segments of m (|p - c|² + k²),
-            // where k is the segment's own radius of gyration.
+            // Distance of each segment from the body's midline (the plane of movement is the middle of the body).
+            float forearmSide = shoulderHalfWidth * (1f - 0.5f * pose.HandsIn);
+            float handSide = shoulderHalfWidth * (1f - pose.HandsIn);
+
+            // Centre of mass and moments of inertia: sum over segments of m (distance² + own term).
             var accumulator = new InertiaAccumulator();
-            accumulator.Add(trunk, hip, up);
-            accumulator.Add(head, shoulder, up);
-            accumulator.Add(upperArm, shoulder, upperArmDir);
-            accumulator.Add(forearm, elbow, forearmDir);
-            accumulator.Add(hand, wrist, forearmDir);
-            accumulator.Add(thigh, hip, thighDir);
-            accumulator.Add(shank, knee, shankDir);
-            accumulator.Add(foot, ankle, shankDir);
+            accumulator.Add(trunk, hip, up, 0f);
+            accumulator.Add(head, shoulder, up, 0f);
+            accumulator.Add(upperArm, shoulder, upperArmDir, shoulderHalfWidth);
+            accumulator.Add(forearm, elbow, forearmDir, forearmSide);
+            accumulator.Add(hand, wrist, forearmDir, handSide);
+            accumulator.Add(thigh, hip, thighDir, hipHalfWidth);
+            accumulator.Add(shank, knee, shankDir, hipHalfWidth);
+            accumulator.Add(foot, ankle, shankDir, hipHalfWidth);
 
             Vector2 centreOfMass = accumulator.CentreOfMass;
-            return new BodyGeometry(centreOfMass, accumulator.InertiaAbout(centreOfMass),
-                shoulder, headTop, elbow, grip, knee, sole);
+            return new BodyGeometry(centreOfMass, accumulator.SaltoInertiaAbout(centreOfMass),
+                accumulator.TwistInertiaAbout(centreOfMass), shoulder, headTop, elbow, grip, knee, sole);
         }
 
         private readonly struct Segment
         {
             public float Length { get; }
+            public float Radius { get; }
             public float Mass { get; }              // fraction of body mass, both sides for paired segments
             public float ComAlong { get; }
-            public float OwnInertia { get; }        // m k², per kilogram of body mass
+            public float OwnSaltoInertia { get; }   // m k² about its own centre, across the segment
+            public float OwnAxialInertia { get; }   // ½ m r² about its own length (a cylinder)
 
             public Segment(SegmentEntry entry, float height)
             {
                 Length = entry.length * height;
+                Radius = entry.radius * height;
                 Mass = entry.mass * (entry.paired ? 2f : 1f);
                 ComAlong = entry.com;
                 float k = entry.gyration * Length;
-                OwnInertia = Mass * k * k;
+                OwnSaltoInertia = Mass * k * k;
+                OwnAxialInertia = 0.5f * Mass * Radius * Radius;
             }
         }
 
-        // Collects segment masses so the centre of mass is known before the parallel-axis sum.
+        // Collects segment masses so the centre of mass is known before the parallel-axis sums.
         private struct InertiaAccumulator
         {
             private Vector2 weightedSum;
             private float mass;
-            private float ownInertia;
-            private float secondMoment;     // Σ m |p|², about the hip
+            private float ownSalto;
+            private float secondMoment;     // Σ m |p|², about the hip (salto: distances in the plane)
+            private float ownTwist;
+            private float sideMoment;       // Σ m z², distance from the midline (twist)
+            private float forwardMoment;    // Σ m x², about the trunk line (twist)
 
-            public void Add(Segment segment, Vector2 start, Vector2 direction)
+            public void Add(Segment segment, Vector2 start, Vector2 direction, float side)
             {
                 Vector2 p = start + direction * (segment.Length * segment.ComAlong);
                 weightedSum += p * segment.Mass;
                 mass += segment.Mass;
-                ownInertia += segment.OwnInertia;
+                ownSalto += segment.OwnSaltoInertia;
                 secondMoment += segment.Mass * p.sqrMagnitude;
+
+                // About the long axis a segment along the trunk only turns about its own length (axial),
+                // and one across the trunk turns end over end (as in a salto). direction.y = cos of the angle between them.
+                float along = direction.y * direction.y;
+                ownTwist += segment.OwnAxialInertia * along + segment.OwnSaltoInertia * (1f - along);
+                sideMoment += segment.Mass * side * side;
+                forwardMoment += segment.Mass * p.x * p.x;
             }
 
             public Vector2 CentreOfMass => weightedSum / mass;
 
             // Σ m |p - c|² = Σ m |p|² - M |c|²   (parallel-axis theorem)
-            public float InertiaAbout(Vector2 c) => ownInertia + secondMoment - mass * c.sqrMagnitude;
+            public float SaltoInertiaAbout(Vector2 c) => ownSalto + secondMoment - mass * c.sqrMagnitude;
+
+            // The long axis runs through the centre of mass along the trunk: distance² = (x - c.x)² + z².
+            public float TwistInertiaAbout(Vector2 c) => ownTwist + forwardMoment - mass * c.x * c.x + sideMoment;
         }
 
         // Shapes of body.json, only used while loading.
@@ -220,6 +272,9 @@ namespace GymnastGame.Simulation
             public float height;
             public float gripAlongHand;
             public float shapeChangeTime;
+            public float shoulderHalfWidth;
+            public float hipHalfWidth;
+            public TwistEntry twist;
             public SegmentEntry[] segments;
             public PoseEntry[] poses;
         }
@@ -232,7 +287,16 @@ namespace GymnastGame.Simulation
             public float mass;
             public float com;
             public float gyration;
+            public float radius;
             public bool paired;
+        }
+
+        [Serializable]
+        private class TwistEntry
+        {
+            public float maxTurnsPerSecond;
+            public float spinUpTime;
+            public float stopTime;
         }
 
         [Serializable]
@@ -243,6 +307,7 @@ namespace GymnastGame.Simulation
             public float elbow;
             public float hip;
             public float knee;
+            public float handsIn;
         }
     }
 }

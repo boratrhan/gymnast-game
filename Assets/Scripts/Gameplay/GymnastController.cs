@@ -1,4 +1,5 @@
 using System;
+using GymnastGame.Rules;
 using GymnastGame.Simulation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -15,7 +16,8 @@ using UnityEngine.InputSystem;
 public class GymnastController : MonoBehaviour
 {
     [SerializeField] private Transform bar;
-    [SerializeField] private TextAsset bodyData;    // Assets/Data/Body/body.json
+    [SerializeField] private TextAsset bodyData;        // Assets/Data/Body/body.json
+    [SerializeField] private TextAsset deductionData;   // Assets/Data/HighBar/deductions.json
     [SerializeField] private SimulationSettings settings = new SimulationSettings();
     [SerializeField] private LandingSettings landing = new LandingSettings();
 
@@ -25,6 +27,9 @@ public class GymnastController : MonoBehaviour
     private bool pumpRequested;
     private bool releaseRequested;
     private BodyShape requestedShape = BodyShape.Straight;
+    private bool twistHeld;
+
+    private DeductionRule incompleteTwist;
 
     private LandingMotion landingMotion;    // null until touchdown
 
@@ -47,6 +52,7 @@ public class GymnastController : MonoBehaviour
     {
         // A TextAsset is a text file in the project that Unity loads for us, like a resource.
         Body = BodyModel.FromJson(bodyData.text);
+        incompleteTwist = DeductionTable.FromJson(deductionData.text).Get("incompleteTwist");
         simulation = new GymnastSimulation(settings, Body, bar.position);
     }
 
@@ -75,6 +81,7 @@ public class GymnastController : MonoBehaviour
             releaseRequested |= ReleasePressedThisFrame();
         }
         requestedShape = ShapeHeld();
+        twistHeld = Keyboard.current != null && Keyboard.current.dKey.isPressed;    // D = twist, held
 
         // The landing motion is the only thing that moves the body after touchdown.
         landingMotion?.Advance(Time.deltaTime);
@@ -82,7 +89,8 @@ public class GymnastController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        simulation.Step(Time.fixedDeltaTime, new GymnastCommands(pumpRequested, releaseRequested, requestedShape));
+        simulation.Step(Time.fixedDeltaTime,
+            new GymnastCommands(pumpRequested, releaseRequested, requestedShape, twistHeld));
         pumpRequested = false;
         releaseRequested = false;
     }
@@ -94,7 +102,8 @@ public class GymnastController : MonoBehaviour
     private void HandleTouchedDown(TouchdownInfo touchdown)
     {
         float landingError = Mathf.Abs(touchdown.LandingAngleDegrees);
-        Result = ScoreJudge.Evaluate(simulation.FullTurns, touchdown.AirRotationDegrees, landingError, simulation.MissCount);
+        Result = ScoreJudge.Evaluate(simulation.FullTurns, touchdown.AirRotationDegrees, landingError, simulation.MissCount,
+            touchdown.HalfTwists / 2, touchdown.TwistErrorDegrees, incompleteTwist);
 
         LandingKind kind = ScoreJudge.IsFall(landingError) ? LandingKind.Fall
             : landingError > ScoreJudge.StuckTolerance ? LandingKind.Step

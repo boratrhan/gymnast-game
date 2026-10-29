@@ -70,7 +70,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
    1. ~~URP, perspective camera, real-scale 3D scene, capsule figure~~ done.
    2. ~~Split into simulation, controller, view and round flow, with an animated landing~~ done.
    3. ~~Articulated figure, BodyPose, tuck and pike with angular momentum~~ done. Shape change time (0.15 s) and height (1.70 m) are in body.json, to tune in play.
-   4. Twist in flight: hold to twist, rate depends on body shape.
+   4. ~~Twist in flight~~ done: D held builds twist momentum H, rate = H / I_long (3 turns/s with arms on the chest, in body.json). Twist error is measured from the nearest half twist until elements are recognised; incompleteTwist in deductions.json (5° tolerance is game-interpretation). Placeholder D +0.5 per full twist.
    5. Regrasp: catch window around the bar, tangential velocity kept, grip from twist angle.
    6. On-bar turns and hops (tap = ½ turn, hold = 1/1 near handstand).
    - Physics stays planar (XY plane, bar along Z); twist ψ about the body's long axis is the only extra rotation. No free 3D physics.
@@ -87,6 +87,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
   ```bash
   "/Applications/Unity/Hub/Editor/6000.6.7f1/Unity.app/Contents/MacOS/Unity" -projectPath ~/UnityProjects/GymnastGame
   ```
+- **Compile check without Unity:** run `tools/compile-check.sh` after every code change and before asking Bora to test. It builds the Unity-generated .csproj files with the editor's bundled dotnet and picks up new .cs files. It cannot run tests: those still need Bora's Test Runner run.
 - **Compile errors:** check `Logs/Editor.log` in the project. `~/Library/Logs/Unity/Editor.log` only has the startup lines; Unity 6.6 moves logging to the project folder after that.
 - **IDE:** JetBrains Rider (non-commercial licence) is set as the external script editor.
 - **Input:** the project uses the **Input System package** (Active Input Handling = Input System Package (New)). Use `UnityEngine.InputSystem`, not the old `Input` class.

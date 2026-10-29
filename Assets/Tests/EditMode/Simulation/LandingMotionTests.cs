@@ -25,13 +25,13 @@ namespace GymnastGame.Simulation.Tests
         }
 
         // A straight body touching down with its feet on the mat, the trunk at the given (unwrapped) angle.
-        private TouchdownInfo Touchdown(float bodyAngleDegrees, float landingAngleDegrees)
+        private TouchdownInfo Touchdown(float bodyAngleDegrees, float landingAngleDegrees, float twistDegrees = 0f)
         {
             var straight = body.ShapePose(BodyShape.Straight);
             var geometry = body.Evaluate(straight);
             var sole = new Vector2(1.5f, GroundY);
             Vector2 centre = sole + PlaneMath.Rotate(geometry.CentreOfMass - geometry.Sole, bodyAngleDegrees * Mathf.Deg2Rad);
-            var pose = new GymnastPose(centre, bodyAngleDegrees, straight);
+            var pose = new GymnastPose(centre, bodyAngleDegrees, straight, twistDegrees);
             return new TouchdownInfo(pose, new Vector2(2f, -4f), sole, landingAngleDegrees, 360f);
         }
 
@@ -57,6 +57,26 @@ namespace GymnastGame.Simulation.Tests
             // The whole turn is at most about 90°, spread over at least 27 frames.
             Assert.Less(largestStep, 15f, "largest change of the body angle in one frame");
             Assert.AreEqual(lean, motion.PoseAt(0f).BodyAngleDegrees, 1e-3f, "starts from the wrapped angle");
+        }
+
+        [TestCase(2 * 360f + 170f, 180f, TestName = "Twist 2 1/2 turns minus 10° settles on a half twist")]
+        [TestCase(360f + 15f, 0f, TestName = "Twist 1/1 plus 15° settles on a full twist")]
+        [TestCase(-(360f + 160f), -180f, TestName = "Twist the other way settles on a half twist")]
+        public void Landing_SettlesTheTwistOnTheNearestHalfTwist(float twist, float expectedEnd)
+        {
+            var motion = new LandingMotion(body, settings, GroundY, Touchdown(8f, 8f, twist), LandingKind.Stick);
+
+            float previous = motion.Pose.TwistDegrees;
+            float largestStep = 0f;
+            while (!motion.IsFinished)
+            {
+                motion.Advance(FrameTime);
+                largestStep = Mathf.Max(largestStep, Mathf.Abs(motion.Pose.TwistDegrees - previous));
+                previous = motion.Pose.TwistDegrees;
+            }
+
+            Assert.AreEqual(expectedEnd, motion.Pose.TwistDegrees, 1e-3f);
+            Assert.Less(largestStep, 5f, "largest change of the twist in one frame");
         }
 
         [Test]

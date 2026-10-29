@@ -16,11 +16,12 @@ You swing on the high bar, build momentum with well-timed taps, let go at the ri
 | `Enter` / right click | **Release.** Let go of the bar and fly |
 | `A` (hold, in the air) | **Tuck.** Spin faster |
 | `S` (hold, in the air) | **Pike** |
+| `D` (hold, in the air) | **Twist.** Arms come to the chest; let go to stop |
 | `R` | Try again after landing |
 
 1. Tap at the bottom of each swing. The closer to the bottom, the stronger the push: **PERFECT**, **GOOD**, **OK** or **MISS**.
 2. Build enough speed to go all the way over the bar: a **giant swing**.
-3. Release and rotate in the air. Letting go while swinging down gives a forward salto. Tuck or pike to spin faster, open up before landing.
+3. Release and rotate in the air. Letting go while swinging down gives a forward salto. Tuck or pike to spin faster, hold D to twist, and open up before landing.
 4. Land as upright as possible.
 
 ## Scoring
@@ -30,11 +31,13 @@ Modelled on the structure of artistic gymnastics scoring:
 **Difficulty (D)**: what you attempted
 - +0.5 per giant swing
 - +1.0 per full salto in the air
+- +0.5 per full twist (placeholder until elements are recognised)
 
 **Execution (E)**: how cleanly you did it, starting from 10.0
 - −0.1 per missed tap (up to −1.0)
 - −0.3 for a small step on landing (body 15°–45° off upright)
 - −1.0 for a fall (more than 45° off upright)
+- Twist not finished on a half or full turn: −0.1 / −0.3 / −0.5 by how far it is off (up to 5° is free), read from `deductions.json`
 
 A landing within 15° of upright is a **stuck landing**, with no deduction.
 
@@ -70,7 +73,7 @@ Assets/
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
 - **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
 - **Planar physics, 3D view.** Swing and flight are simulated in one vertical plane, as on a real high bar, and shown in a real-scale 3D scene (bar 2.6 m above the mat) with the Universal Render Pipeline and a following perspective camera.
-- **Body shape changes the spin.** An articulated figure is built from a segment model (anthropometric proportions). Its moment of inertia is computed from the current pose, and angular momentum is conserved in the air (ω = L / I), so a tuck spins about three times faster than a straight body.
+- **Body shape changes the spin.** An articulated figure is built from a segment model (anthropometric proportions). Its moment of inertia is computed from the current pose, and angular momentum is conserved in the air (ω = L / I), so a tuck spins about three times faster than a straight body. The twist works the same way about the long axis (ω = H / I_long): fast with the arms on the chest, slower in a tuck, slowest in a pike.
 - **Input System package** for keyboard, mouse and touch input.
 
 ## Running the project

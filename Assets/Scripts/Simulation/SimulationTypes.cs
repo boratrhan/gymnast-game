@@ -16,12 +16,14 @@ namespace GymnastGame.Simulation
         public bool Pump { get; }
         public bool Release { get; }
         public BodyShape Shape { get; }     // used in the air
+        public bool Twist { get; }          // held in the air
 
-        public GymnastCommands(bool pump, bool release, BodyShape shape = BodyShape.Straight)
+        public GymnastCommands(bool pump, bool release, BodyShape shape = BodyShape.Straight, bool twist = false)
         {
             Pump = pump;
             Release = release;
             Shape = shape;
+            Twist = twist;
         }
 
         public static GymnastCommands None => new GymnastCommands(false, false);
@@ -30,18 +32,21 @@ namespace GymnastGame.Simulation
     /// <summary>
     /// Where the body is in the plane of movement. CentreOfMass is in world space;
     /// BodyAngleDegrees is the rotation of the body frame (trunk) about the bar axis,
-    /// 0 = head up, counter-clockwise positive. Joints gives the shape.
+    /// 0 = head up, counter-clockwise positive. TwistDegrees is the rotation about the body's long axis
+    /// (0 = chest facing +x). Joints gives the shape.
     /// </summary>
     public readonly struct GymnastPose
     {
         public Vector2 CentreOfMass { get; }
         public float BodyAngleDegrees { get; }
+        public float TwistDegrees { get; }
         public BodyPose Joints { get; }
 
-        public GymnastPose(Vector2 centreOfMass, float bodyAngleDegrees, BodyPose joints)
+        public GymnastPose(Vector2 centreOfMass, float bodyAngleDegrees, BodyPose joints, float twistDegrees = 0f)
         {
             CentreOfMass = centreOfMass;
             BodyAngleDegrees = bodyAngleDegrees;
+            TwistDegrees = twistDegrees;
             Joints = joints;
         }
     }
@@ -55,6 +60,12 @@ namespace GymnastGame.Simulation
         public float LandingAngleDegrees { get; }   // feet → centre of mass line against vertical, -180..180
         public float AirRotationDegrees { get; }    // total body rotation since release, signed
 
+        /// <summary>Completed half twists, counted to the nearest half twist (so 340° counts as two).</summary>
+        public int HalfTwists => TwistMath.NearestHalfTwists(Pose.TwistDegrees);
+
+        /// <summary>How far the twist is from that nearest half twist, 0..90 degrees.</summary>
+        public float TwistErrorDegrees => TwistMath.ErrorFromHalfTwist(Pose.TwistDegrees);
+
         public TouchdownInfo(GymnastPose pose, Vector2 velocity, Vector2 sole, float landingAngleDegrees,
             float airRotationDegrees)
         {
@@ -63,6 +74,21 @@ namespace GymnastGame.Simulation
             Sole = sole;
             LandingAngleDegrees = landingAngleDegrees;
             AirRotationDegrees = airRotationDegrees;
+        }
+    }
+
+    /// <summary>
+    /// Twist bookkeeping. Until elements are recognised, the intended twist is taken to be the nearest
+    /// half twist, because a landing must face forwards or backwards.
+    /// </summary>
+    public static class TwistMath
+    {
+        public static int NearestHalfTwists(float twistDegrees) => Mathf.RoundToInt(Mathf.Abs(twistDegrees) / 180f);
+
+        public static float ErrorFromHalfTwist(float twistDegrees)
+        {
+            float nearest = Mathf.Round(twistDegrees / 180f) * 180f;
+            return Mathf.Abs(twistDegrees - nearest);
         }
     }
 

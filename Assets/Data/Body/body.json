@@ -6,26 +6,34 @@
     "paired segments (arms, legs) are listed once and counted twice.",
     "foot: modelled as the heel height below the ankle, along the shank (pointed toes).",
     "Joint angles in degrees: shoulder 0 = arms down, 180 = overhead; elbow and knee 0 = straight; hip 0 = legs straight down, positive = legs forward (towards the chest).",
-    "shapeChangeTime: seconds to go from straight to full tuck; every joint moves at the same angular speed."
+    "shapeChangeTime: seconds to go from straight to full tuck; every joint moves at the same angular speed.",
+    "radius: segment thickness as a fraction of height (a cylinder of that radius), used for the moment of inertia about the long axis (twist) and for the figure's visuals.",
+    "shoulderHalfWidth, hipHalfWidth: distance of the shoulder and hip joints from the body's midline, as a fraction of height.",
+    "handsIn (pose): 0 = hands at shoulder width, 1 = hands at the midline (arms on the chest).",
+    "twist: maxTurnsPerSecond is the twist rate in the 'twist' pose (straight body, arms on the chest); other shapes twist slower because their inertia about the long axis is larger. spinUpTime / stopTime: seconds to reach full twist speed after pressing, and to stop after letting go."
   ],
   "height": 1.70,
   "gripAlongHand": 0.506,
   "shapeChangeTime": 0.15,
+  "shoulderHalfWidth": 0.112,
+  "hipHalfWidth": 0.053,
+  "twist": { "maxTurnsPerSecond": 3.0, "spinUpTime": 0.15, "stopTime": 0.15 },
   "segments": [
-    { "name": "trunk",    "length": 0.288, "mass": 0.497,  "com": 0.50,  "gyration": 0.30,  "paired": false },
-    { "name": "head",     "length": 0.182, "mass": 0.081,  "com": 0.55,  "gyration": 0.30,  "paired": false },
-    { "name": "upperArm", "length": 0.186, "mass": 0.028,  "com": 0.436, "gyration": 0.322, "paired": true },
-    { "name": "forearm",  "length": 0.146, "mass": 0.016,  "com": 0.430, "gyration": 0.303, "paired": true },
-    { "name": "hand",     "length": 0.108, "mass": 0.006,  "com": 0.506, "gyration": 0.297, "paired": true },
-    { "name": "thigh",    "length": 0.245, "mass": 0.100,  "com": 0.433, "gyration": 0.323, "paired": true },
-    { "name": "shank",    "length": 0.246, "mass": 0.0465, "com": 0.433, "gyration": 0.302, "paired": true },
-    { "name": "foot",     "length": 0.039, "mass": 0.0145, "com": 0.50,  "gyration": 0.475, "paired": true }
+    { "name": "trunk",    "length": 0.288, "mass": 0.497,  "com": 0.50,  "gyration": 0.30,  "radius": 0.081, "paired": false },
+    { "name": "head",     "length": 0.182, "mass": 0.081,  "com": 0.55,  "gyration": 0.30,  "radius": 0.065, "paired": false },
+    { "name": "upperArm", "length": 0.186, "mass": 0.028,  "com": 0.436, "gyration": 0.322, "radius": 0.026, "paired": true },
+    { "name": "forearm",  "length": 0.146, "mass": 0.016,  "com": 0.430, "gyration": 0.303, "radius": 0.022, "paired": true },
+    { "name": "hand",     "length": 0.108, "mass": 0.006,  "com": 0.506, "gyration": 0.297, "radius": 0.024, "paired": true },
+    { "name": "thigh",    "length": 0.245, "mass": 0.100,  "com": 0.433, "gyration": 0.323, "radius": 0.041, "paired": true },
+    { "name": "shank",    "length": 0.246, "mass": 0.0465, "com": 0.433, "gyration": 0.302, "radius": 0.029, "paired": true },
+    { "name": "foot",     "length": 0.039, "mass": 0.0145, "com": 0.50,  "gyration": 0.475, "radius": 0.026, "paired": true }
   ],
   "poses": [
-    { "name": "straight",      "shoulder": 180, "elbow": 0,  "hip": 0,   "knee": 0 },
-    { "name": "pike",          "shoulder": 120, "elbow": 0,  "hip": 115, "knee": 0 },
-    { "name": "tuck",          "shoulder": 60,  "elbow": 60, "hip": 135, "knee": 135 },
-    { "name": "stand",         "shoulder": 180, "elbow": 0,  "hip": 0,   "knee": 0 },
-    { "name": "landingCrouch", "shoulder": 150, "elbow": 0,  "hip": 55,  "knee": 85 }
+    { "name": "straight",      "shoulder": 180, "elbow": 0,   "hip": 0,   "knee": 0,   "handsIn": 0 },
+    { "name": "pike",          "shoulder": 120, "elbow": 0,   "hip": 115, "knee": 0,   "handsIn": 0 },
+    { "name": "tuck",          "shoulder": 60,  "elbow": 60,  "hip": 135, "knee": 135, "handsIn": 0 },
+    { "name": "twist",         "shoulder": 15,  "elbow": 125, "hip": 0,   "knee": 0,   "handsIn": 1 },
+    { "name": "stand",         "shoulder": 180, "elbow": 0,   "hip": 0,   "knee": 0,   "handsIn": 0 },
+    { "name": "landingCrouch", "shoulder": 150, "elbow": 0,   "hip": 55,  "knee": 85,  "handsIn": 0 }
   ]
 }

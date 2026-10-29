@@ -56,6 +56,19 @@ namespace GymnastGame.Simulation.Tests
         }
 
         [Test]
+        public void TwistInertia_IsRealistic_AndLargestInAPike()
+        {
+            float twistPose = body.Evaluate(body.Pose("twist")).TwistInertia;
+            float tuck = body.Evaluate(body.ShapePose(BodyShape.Tuck)).TwistInertia;
+            float pike = body.Evaluate(body.ShapePose(BodyShape.Pike)).TwistInertia;
+
+            // Measured values for a 70 kg gymnast with the arms in are about 1 kg m².
+            Assert.That(twistPose * 70f, Is.InRange(0.6f, 1.3f), "kg m² for 70 kg, arms on the chest");
+            Assert.Greater(tuck, twistPose);
+            Assert.Greater(pike, tuck, "straight legs forward are furthest from the long axis");
+        }
+
+        [Test]
         public void Pike_MovesTheCentreOfMassTowardsTheChest()
         {
             var piked = body.Evaluate(body.ShapePose(BodyShape.Pike));

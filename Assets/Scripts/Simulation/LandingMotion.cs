@@ -33,8 +33,9 @@ namespace GymnastGame.Simulation
     /// The body's motion from touchdown to its final pose, as plain C# so it can be tested.
     /// Call Advance every frame; Pose is the pose to draw, and Finished is raised once,
     /// when the whole duration has passed.
-    /// The body angle from the simulation is not wrapped (it still counts the giant swings and saltos),
-    /// so the motion starts from the same angle wrapped to -180..180 and turns the short way.
+    /// The body and twist angles from the simulation are not wrapped (they still count every giant swing,
+    /// salto and twist), so the motion starts from the same angles wrapped to -180..180 and turns the short way.
+    /// The twist settles on the nearest half twist: the gymnast ends facing forwards or backwards.
     /// </summary>
     public class LandingMotion
     {
@@ -45,6 +46,8 @@ namespace GymnastGame.Simulation
         private readonly float groundY;
         private readonly TouchdownInfo touchdown;
         private readonly float startAngle;              // wrapped to -180..180
+        private readonly float startTwist;              // wrapped to -180..180
+        private readonly float endTwist;                // nearest half twist: -180, 0 or 180
 
         public LandingKind Kind { get; }
         public float Duration { get; }
@@ -62,6 +65,8 @@ namespace GymnastGame.Simulation
             this.touchdown = touchdown;
             Kind = kind;
             startAngle = Mathf.DeltaAngle(0f, touchdown.Pose.BodyAngleDegrees);
+            startTwist = Mathf.DeltaAngle(0f, touchdown.Pose.TwistDegrees);
+            endTwist = Mathf.Round(startTwist / 180f) * 180f;
 
             switch (kind)
             {
@@ -89,12 +94,15 @@ namespace GymnastGame.Simulation
         public GymnastPose PoseAt(float t)
         {
             t = Mathf.Clamp01(t);
+            GymnastPose pose;
             switch (Kind)
             {
-                case LandingKind.Stick: return StickAt(t);
-                case LandingKind.Step: return StepAt(t);
-                default: return FallAt(t);
+                case LandingKind.Stick: pose = StickAt(t); break;
+                case LandingKind.Step: pose = StepAt(t); break;
+                default: pose = FallAt(t); break;
             }
+            float twist = Mathf.Lerp(startTwist, endTwist, Mathf.SmoothStep(0f, 1f, t));
+            return new GymnastPose(pose.CentreOfMass, pose.BodyAngleDegrees, pose.Joints, twist);
         }
 
         private GymnastPose StickAt(float t)

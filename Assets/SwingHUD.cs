@@ -133,7 +133,7 @@ public class SwingHUD : MonoBehaviour
         if (gymnast.IsSwinging)
         {
             GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 30),
-                "SPACE / click: pump at the bottom     ENTER / right-click: release     in the air: hold A tuck, S pike",
+                "SPACE / click: pump at the bottom     ENTER / right-click: release     in the air: hold A tuck, S pike, D twist",
                 hintStyle);
         }
 
