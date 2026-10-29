@@ -1,3 +1,4 @@
+using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -5,27 +6,36 @@ namespace GymnastGame.Simulation.Tests
 {
     /// <summary>
     /// Physics tests for the planar gymnast simulation, with the scene's real-scale settings:
-    /// bar at 2.6 m, centre of mass 1.1 m below it, ground at y = 0, half body height 0.85 m.
+    /// bar at 2.6 m, ground at y = 0, body from Assets/Data/Body/body.json.
     /// </summary>
     public class GymnastSimulationTests
     {
         private const float Dt = 0.02f;     // Unity's default fixed time step
         private const float Gravity = 9.81f;
-        private const float ArmLength = 1.1f;
         private static readonly Vector2 Bar = new Vector2(0f, 2.6f);
 
+        private static BodyModel body;
+
+        [OneTimeSetUp]
+        public void LoadBody()
+        {
+            body = BodyModel.FromJson(File.ReadAllText(Path.Combine(Application.dataPath, "Data", "Body", "body.json")));
+        }
+
         private static GymnastSimulation Create(float damping = 0.15f, float startAngle = 30f) =>
-            new GymnastSimulation(new SimulationSettings().With(damping, startAngle), Bar);
+            new GymnastSimulation(new SimulationSettings().With(damping, startAngle), body, Bar);
 
         private static GymnastCommands Pump => new GymnastCommands(pump: true, release: false);
         private static GymnastCommands Release => new GymnastCommands(pump: false, release: true);
+        private static GymnastCommands InShape(BodyShape shape) => new GymnastCommands(false, false, shape);
 
         // Energy per unit mass of a point pendulum, measured from the bottom of the swing.
         private static float Energy(GymnastSimulation sim)
         {
+            float length = sim.PendulumLength;
             float a = sim.AngleDegrees * Mathf.Deg2Rad;
             float w = sim.AngularVelocity;
-            return 0.5f * ArmLength * ArmLength * w * w + Gravity * ArmLength * (1f - Mathf.Cos(a));
+            return 0.5f * length * length * w * w + Gravity * length * (1f - Mathf.Cos(a));
         }
 
         // The swing uses semi-implicit Euler (velocity first, then angle). It conserves a slightly
@@ -121,10 +131,11 @@ namespace GymnastGame.Simulation.Tests
 
             float a = sim.AngleDegrees * Mathf.Deg2Rad;
             float w = sim.AngularVelocity;
+            float r = sim.PendulumLength;
             sim.Step(Dt, Release);
 
             // v = w x r, then one step of gravity in the air
-            var expected = new Vector2(w * ArmLength * Mathf.Cos(a), w * ArmLength * Mathf.Sin(a) - Gravity * Dt);
+            var expected = new Vector2(w * r * Mathf.Cos(a), w * r * Mathf.Sin(a) - Gravity * Dt);
             Assert.AreEqual(GymnastPhase.Flying, sim.Phase);
             Assert.AreEqual(expected.x, sim.Velocity.x, 1e-4f);
             Assert.AreEqual(expected.y, sim.Velocity.y, 1e-4f);
@@ -137,6 +148,10 @@ namespace GymnastGame.Simulation.Tests
             TouchdownInfo? touchdown = null;
             sim.TouchedDown += info => touchdown = info;
 
+            // Height of the feet when hanging still: the lowest point of the straight body.
+            var hanging = body.Evaluate(body.ShapePose(BodyShape.Straight));
+            float feetHeight = hanging.LowestY(Bar.y - sim.PendulumLength, 0f);
+
             const float dt = 0.001f;
             float time = 0f;
             sim.Step(dt, Release);
@@ -146,12 +161,43 @@ namespace GymnastGame.Simulation.Tests
                 sim.Step(dt, GymnastCommands.None);
             }
 
-            // Feet start at 2.6 - 1.1 - 0.85 = 0.65 m: t = sqrt(2h / g)
-            float expectedTime = Mathf.Sqrt(2f * 0.65f / Gravity);
             Assert.IsTrue(touchdown.HasValue);
-            Assert.AreEqual(expectedTime, time, 0.005f);
-            Assert.AreEqual(0f, touchdown.Value.BodyAngleDegrees, 1e-3f);
+            Assert.AreEqual(Mathf.Sqrt(2f * feetHeight / Gravity), time, 0.005f);   // t = sqrt(2h / g)
+            Assert.AreEqual(0f, touchdown.Value.LandingAngleDegrees, 1e-3f);
             Assert.AreEqual(0f, touchdown.Value.AirRotationDegrees, 1e-3f);
+        }
+
+        [Test]
+        public void Tuck_KeepsAngularMomentumAndSpinsFaster()
+        {
+            var sim = ReleasedUpwards();
+            sim.Step(Dt, InShape(BodyShape.Straight));
+            float straightSpin = sim.BodyAngularVelocity;
+            float momentum = sim.AngularMomentum;
+
+            for (int i = 0; i < 20; i++)    // 0.4 s, longer than the change to a full tuck
+                sim.Step(Dt, InShape(BodyShape.Tuck));
+
+            float straightInertia = body.Evaluate(body.ShapePose(BodyShape.Straight)).Inertia;
+            float tuckInertia = body.Evaluate(body.ShapePose(BodyShape.Tuck)).Inertia;
+            Assert.AreEqual(GymnastPhase.Flying, sim.Phase);
+            Assert.AreEqual(momentum, sim.AngularMomentum);
+            Assert.AreEqual(straightInertia / tuckInertia, sim.BodyAngularVelocity / straightSpin, 0.01f);   // ω = L / I
+        }
+
+        [Test]
+        public void ShapeChange_ReachesTuckInTheShapeChangeTime()
+        {
+            var sim = ReleasedUpwards();
+            var tuck = body.ShapePose(BodyShape.Tuck);
+            int stepsNeeded = Mathf.CeilToInt(body.ShapeChangeTime / Dt);
+
+            for (int i = 0; i < stepsNeeded - 1; i++)
+                sim.Step(Dt, InShape(BodyShape.Tuck));
+            Assert.Greater(BodyPose.MaxDifference(sim.Pose.Joints, tuck), 0f, "too early to be fully tucked");
+
+            sim.Step(Dt, InShape(BodyShape.Tuck));
+            Assert.AreEqual(0f, BodyPose.MaxDifference(sim.Pose.Joints, tuck), 1e-3f);
         }
 
         [Test]
@@ -166,7 +212,7 @@ namespace GymnastGame.Simulation.Tests
             sim.Step(Dt, GymnastCommands.None);
 
             Assert.AreEqual(GymnastPhase.Touchdown, sim.Phase);
-            Assert.AreEqual(before.Position, sim.Pose.Position);
+            Assert.AreEqual(before.CentreOfMass, sim.Pose.CentreOfMass);
         }
 
         [Test]
@@ -177,7 +223,7 @@ namespace GymnastGame.Simulation.Tests
                 var sim = Create();
                 for (int i = 0; i < 400; i++)
                 {
-                    var commands = i % 37 == 0 ? Pump : i == 390 ? Release : GymnastCommands.None;
+                    var commands = i % 37 == 0 ? Pump : i == 390 ? Release : InShape(i > 392 ? BodyShape.Tuck : BodyShape.Straight);
                     sim.Step(Dt, commands);
                 }
                 return sim.Pose;
@@ -186,8 +232,20 @@ namespace GymnastGame.Simulation.Tests
             var first = Run();
             var second = Run();
 
-            Assert.AreEqual(first.Position, second.Position);
+            Assert.AreEqual(first.CentreOfMass, second.CentreOfMass);
             Assert.AreEqual(first.BodyAngleDegrees, second.BodyAngleDegrees);
+        }
+
+        // Swings down from near the handstand and lets go 45° past the bottom on the way up,
+        // so the flight is long enough for shape changes (about a second in the air).
+        private static GymnastSimulation ReleasedUpwards()
+        {
+            var sim = Create(damping: 0f, startAngle: 179f);
+            for (int i = 0; i < 500 && sim.AngleDegrees > -45f; i++)
+                sim.Step(Dt, GymnastCommands.None);
+            sim.Step(Dt, Release);
+            Assert.AreEqual(GymnastPhase.Flying, sim.Phase);
+            return sim;
         }
     }
 }

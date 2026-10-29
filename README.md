@@ -14,11 +14,13 @@ You swing on the high bar, build momentum with well-timed taps, let go at the ri
 |---|---|
 | `Space` / left click | **Pump.** Tap as the gymnast passes the bottom of the swing to add momentum |
 | `Enter` / right click | **Release.** Let go of the bar and fly |
+| `A` (hold, in the air) | **Tuck.** Spin faster |
+| `S` (hold, in the air) | **Pike** |
 | `R` | Try again after landing |
 
 1. Tap at the bottom of each swing. The closer to the bottom, the stronger the push: **PERFECT**, **GOOD**, **OK** or **MISS**.
 2. Build enough speed to go all the way over the bar: a **giant swing**.
-3. Release and rotate in the air. Letting go while swinging down gives a forward salto.
+3. Release and rotate in the air. Letting go while swinging down gives a forward salto. Tuck or pike to spin faster, open up before landing.
 4. Land as upright as possible.
 
 ## Scoring
@@ -47,6 +49,7 @@ Assets/
 ├── ScoreJudge.cs       D + E scoring rules (pure C#, no Unity dependencies)
 ├── SwingHUD.cs         On-screen feedback, controls and score card
 ├── Editor/             GymnastSceneBuilder: menu that builds the real-scale 3D scene
+├── Data/Body/body.json  Planar body model: segment lengths, masses, joint poses for straight / pike / tuck
 ├── Data/HighBar/
 │   ├── elements.json     High bar element catalogue: 131 elements with value, group, family, saltos, twists, shape
 │   ├── deductions.json   Execution deductions as measurable rules (angle, count or event bands)
@@ -63,10 +66,11 @@ Assets/
 - **Hand-written physics, not Rigidbody.** The swing is a pendulum (`α = −(g / L) · sin θ`) integrated in `FixedUpdate`, so the motion is deterministic and fully tunable from the Inspector.
 - **Physically consistent release.** On release, the gymnast's velocity is the tangential velocity of the swing (`v = ω × r`), and the body keeps rotating at the swing's angular velocity. Releasing at the right point in the swing really does matter.
 - **Simulation, gameplay and presentation are separate.** `GymnastSimulation` is plain C# with its own clock, so the same input always gives the same motion and the physics is unit-tested. `GymnastController` feeds it input and exposes C# events (`Pumped`, `FullTurnCompleted`, `Released`, `Landed`). The HUD only listens to them (observer pattern), and `GymnastView` only draws the pose, so audio, effects or a new UI can be added without touching the gameplay code.
-- **Landing animations match the score.** A stuck landing gives at the knees, a small step steps out and straightens up, and a fall tips over, using coroutines. The score card appears only after the animation finishes.
+- **Landing animations match the score.** A stuck landing gives at the knees, a small step steps out and straightens up, and a fall tips over. The motion is a plain C# class (`LandingMotion`), stepped every frame and unit-tested; the score card appears only after it finishes.
 - **Rules separated from the engine.** `ScoreJudge` is a static, pure C# class. All scoring values live in one place and can be unit-tested without running the game.
 - **Rules as data.** Elements, deductions and composition rules live in JSON files. `DScoreCalculator` reads them and applies repetition, family and flight limits, picks the best counting elements (trying every allowed selection), and adds group bonuses, connection values and the stick bonus. Adding an element means adding data, not code. Rules we had to interpret ourselves are marked `"source": "game-interpretation"`.
 - **Planar physics, 3D view.** Swing and flight are simulated in one vertical plane, as on a real high bar, and shown in a real-scale 3D scene (bar 2.6 m above the mat) with the Universal Render Pipeline and a following perspective camera.
+- **Body shape changes the spin.** An articulated figure is built from a segment model (anthropometric proportions). Its moment of inertia is computed from the current pose, and angular momentum is conserved in the air (ω = L / I), so a tuck spins about three times faster than a straight body.
 - **Input System package** for keyboard, mouse and touch input.
 
 ## Running the project

@@ -30,7 +30,7 @@ Assets/
 ├── Scripts/Simulation/ GymnastSimulation (own assembly, pure C#): planar pendulum + pump, release (v = ω × r),
 │                       projectile flight with spin, touchdown. Own clock, deterministic, unit-tested.
 ├── Scripts/Gameplay/   GymnastController: input in Update, Step in FixedUpdate, scores with ScoreJudge, plays the
-│                       landing animation (coroutines: stick / step / fall). Events: Pumped, FullTurnCompleted,
+│                       landing motion (`LandingMotion` in Simulation: stick / step / fall, stepped in Update). Events: Pumped, FullTurnCompleted,
 │                       Released, Landed(ScoreResult) after the animation. RoundFlow: R = restart.
 ├── Scripts/Presentation/ GymnastView (draws CurrentPose), CameraFollow.
 ├── ScoreJudge.cs       Pure static C# scoring: ScoreResult struct, D + E, deduction constants and landing tolerances.
@@ -40,7 +40,7 @@ Assets/
 
 Scene hierarchy (Main.unity), real scale in metres, built by `Tools → Gymnast → Build 3D Scene` (`Assets/Editor/GymnastSceneBuilder.cs`, safe to re-run):
 - `Bar` at (0, 2.6, 0), the swing pivot (does not rotate): has `GymnastController` (settings: armLength 1.1, pumpStrength 1.6, groundY 0) and `RoundFlow`.
-- `Gymnast`: root-level 1.7 m capsule with `GymnastView`, placed from the controller's pose each frame.
+- `Gymnast`: root-level object at the centre of mass with `GymnastView`; child bones with Humanoid names (`Hips`, `Spine`, `Head`, `Left/RightUpperArm`, `LowerArm`, `Hand`, `UpperLeg`, `LowerLeg`, `Foot`), each with a primitive visual. Sizes from `Assets/Data/Body/body.json` (1.70 m, Winter proportions); the pendulum length (hands → CoM, about 1.01 m) is derived from it.
 - `BarVisual`: the visible bar, cylinder along Z. `Apparatus` holds the two uprights.
 - `LandingMat`: top surface at y = 0. `Floor`: plane below it.
 - `HUD`: has `SwingHUD`, with its Gymnast field pointing to the `GymnastController` on `Bar`.
@@ -69,7 +69,7 @@ Current scoring placeholder (to be replaced by Code of Points data):
 3. **3D migration** (in progress, plan approved by Bora), one commit per step, game playable after each:
    1. ~~URP, perspective camera, real-scale 3D scene, capsule figure~~ done.
    2. ~~Split into simulation, controller, view and round flow, with an animated landing~~ done.
-   3. Articulated primitive figure driven by a `BodyPose` struct (Humanoid bone names, so a Mixamo view can replace it later). Body shape with angular momentum (L = I·ω).
+   3. ~~Articulated figure, BodyPose, tuck and pike with angular momentum~~ done. Shape change time (0.15 s) and height (1.70 m) are in body.json, to tune in play.
    4. Twist in flight: hold to twist, rate depends on body shape.
    5. Regrasp: catch window around the bar, tangential velocity kept, grip from twist angle.
    6. On-bar turns and hops (tap = ½ turn, hold = 1/1 near handstand).

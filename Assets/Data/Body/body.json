@@ -1,0 +1,31 @@
+{
+  "fieldNotes": [
+    "Planar body model (sagittal plane). Segment lengths are fractions of height; mass fractions of body mass.",
+    "Proportions after Winter, Biomechanics and Motor Control of Human Movement (4th ed.), Table 4.1. Head and trunk radii of gyration are approximations.",
+    "com: centre of mass along the segment, as a fraction of its length from the proximal joint. gyration: radius of gyration about the segment's own centre of mass, as a fraction of its length.",
+    "paired segments (arms, legs) are listed once and counted twice.",
+    "foot: modelled as the heel height below the ankle, along the shank (pointed toes).",
+    "Joint angles in degrees: shoulder 0 = arms down, 180 = overhead; elbow and knee 0 = straight; hip 0 = legs straight down, positive = legs forward (towards the chest).",
+    "shapeChangeTime: seconds to go from straight to full tuck; every joint moves at the same angular speed."
+  ],
+  "height": 1.70,
+  "gripAlongHand": 0.506,
+  "shapeChangeTime": 0.15,
+  "segments": [
+    { "name": "trunk",    "length": 0.288, "mass": 0.497,  "com": 0.50,  "gyration": 0.30,  "paired": false },
+    { "name": "head",     "length": 0.182, "mass": 0.081,  "com": 0.55,  "gyration": 0.30,  "paired": false },
+    { "name": "upperArm", "length": 0.186, "mass": 0.028,  "com": 0.436, "gyration": 0.322, "paired": true },
+    { "name": "forearm",  "length": 0.146, "mass": 0.016,  "com": 0.430, "gyration": 0.303, "paired": true },
+    { "name": "hand",     "length": 0.108, "mass": 0.006,  "com": 0.506, "gyration": 0.297, "paired": true },
+    { "name": "thigh",    "length": 0.245, "mass": 0.100,  "com": 0.433, "gyration": 0.323, "paired": true },
+    { "name": "shank",    "length": 0.246, "mass": 0.0465, "com": 0.433, "gyration": 0.302, "paired": true },
+    { "name": "foot",     "length": 0.039, "mass": 0.0145, "com": 0.50,  "gyration": 0.475, "paired": true }
+  ],
+  "poses": [
+    { "name": "straight",      "shoulder": 180, "elbow": 0,  "hip": 0,   "knee": 0 },
+    { "name": "pike",          "shoulder": 120, "elbow": 0,  "hip": 115, "knee": 0 },
+    { "name": "tuck",          "shoulder": 60,  "elbow": 60, "hip": 135, "knee": 135 },
+    { "name": "stand",         "shoulder": 180, "elbow": 0,  "hip": 0,   "knee": 0 },
+    { "name": "landingCrouch", "shoulder": 150, "elbow": 0,  "hip": 55,  "knee": 85 }
+  ]
+}

@@ -7,7 +7,7 @@ namespace GymnastGame.Simulation
     {
         OnBar,      // swinging around the bar
         Flying,     // released, in the air
-        Touchdown   // feet (or body) reached the ground; the simulation stops here
+        Touchdown   // the body reached the ground; the simulation stops here
     }
 
     /// <summary>What the player asked for during one simulation step.</summary>
@@ -15,59 +15,63 @@ namespace GymnastGame.Simulation
     {
         public bool Pump { get; }
         public bool Release { get; }
+        public BodyShape Shape { get; }     // used in the air
 
-        public GymnastCommands(bool pump, bool release)
+        public GymnastCommands(bool pump, bool release, BodyShape shape = BodyShape.Straight)
         {
             Pump = pump;
             Release = release;
+            Shape = shape;
         }
 
         public static GymnastCommands None => new GymnastCommands(false, false);
     }
 
     /// <summary>
-    /// Where the body is in the plane of movement. Position is the centre of mass;
-    /// BodyAngleDegrees is the rotation about the bar axis (0 = head up, counter-clockwise positive).
-    /// Crouch (0..1) is only used by the landing animation.
+    /// Where the body is in the plane of movement. CentreOfMass is in world space;
+    /// BodyAngleDegrees is the rotation of the body frame (trunk) about the bar axis,
+    /// 0 = head up, counter-clockwise positive. Joints gives the shape.
     /// </summary>
     public readonly struct GymnastPose
     {
-        public Vector2 Position { get; }
+        public Vector2 CentreOfMass { get; }
         public float BodyAngleDegrees { get; }
-        public float Crouch { get; }
+        public BodyPose Joints { get; }
 
-        public GymnastPose(Vector2 position, float bodyAngleDegrees, float crouch = 0f)
+        public GymnastPose(Vector2 centreOfMass, float bodyAngleDegrees, BodyPose joints)
         {
-            Position = position;
+            CentreOfMass = centreOfMass;
             BodyAngleDegrees = bodyAngleDegrees;
-            Crouch = crouch;
+            Joints = joints;
         }
     }
 
     /// <summary>The moment the body first reaches the ground after a release.</summary>
     public readonly struct TouchdownInfo
     {
-        public Vector2 Position { get; }
+        public GymnastPose Pose { get; }
         public Vector2 Velocity { get; }
-        public float BodyAngleDegrees { get; }      // -180..180, 0 = perfectly upright
-        public float AirRotationDegrees { get; }    // total rotation since release, signed
+        public Vector2 Sole { get; }                // world position of the feet
+        public float LandingAngleDegrees { get; }   // feet → centre of mass line against vertical, -180..180
+        public float AirRotationDegrees { get; }    // total body rotation since release, signed
 
-        public TouchdownInfo(Vector2 position, Vector2 velocity, float bodyAngleDegrees, float airRotationDegrees)
+        public TouchdownInfo(GymnastPose pose, Vector2 velocity, Vector2 sole, float landingAngleDegrees,
+            float airRotationDegrees)
         {
-            Position = position;
+            Pose = pose;
             Velocity = velocity;
-            BodyAngleDegrees = bodyAngleDegrees;
+            Sole = sole;
+            LandingAngleDegrees = landingAngleDegrees;
             AirRotationDegrees = airRotationDegrees;
         }
     }
 
-    /// <summary>Tuning values, edited in the Inspector of GymnastController.</summary>
+    /// <summary>Tuning values, edited in the Inspector of GymnastController. Body sizes come from body.json.</summary>
     [Serializable]
     public class SimulationSettings
     {
         [Header("Swing")]
         [SerializeField] private float gravity = 9.81f;
-        [SerializeField] private float armLength = 1.1f;        // bar to the centre of mass
         [SerializeField] private float damping = 0.15f;         // air/friction loss per second
         [SerializeField] private float startAngle = 30f;        // degrees, so the swing starts moving
 
@@ -76,23 +80,16 @@ namespace GymnastGame.Simulation
         [SerializeField] private float pumpWindow = 25f;        // degrees either side of the bottom where a tap counts
         [SerializeField] private float pumpCooldown = 0.35f;    // seconds; one tap per pass through the bottom
 
-        [Header("Body and ground")]
+        [Header("Ground")]
         [SerializeField] private float groundY = 0f;            // top surface of the landing mat
-        [SerializeField] private float halfHeight = 0.85f;      // centre of the body to the feet
-        [SerializeField] private float bodyRadius = 0.175f;     // half the body's thickness
 
         public float Gravity => gravity;
-        public float ArmLength => armLength;
         public float Damping => damping;
         public float StartAngle => startAngle;
         public float PumpStrength => pumpStrength;
         public float PumpWindow => pumpWindow;
         public float PumpCooldown => pumpCooldown;
         public float GroundY => groundY;
-        public float HalfHeight => halfHeight;
-        public float BodyRadius => bodyRadius;
-
-        public SimulationSettings() { }
 
         /// <summary>Copy with a different damping and start angle; used by tests.</summary>
         public SimulationSettings With(float? damping = null, float? startAngle = null)
@@ -102,5 +99,19 @@ namespace GymnastGame.Simulation
             if (startAngle.HasValue) copy.startAngle = startAngle.Value;
             return copy;
         }
+    }
+
+    /// <summary>Rotations in the plane of movement.</summary>
+    public static class PlaneMath
+    {
+        /// <summary>Rotates v counter-clockwise by the given angle in radians.</summary>
+        public static Vector2 Rotate(Vector2 v, float radians)
+        {
+            float sin = Mathf.Sin(radians), cos = Mathf.Cos(radians);
+            return new Vector2(v.x * cos - v.y * sin, v.x * sin + v.y * cos);
+        }
+
+        /// <summary>Angle of v against straight up, counter-clockwise positive, in degrees (-180..180).</summary>
+        public static float AngleFromVertical(Vector2 v) => Mathf.Atan2(-v.x, v.y) * Mathf.Rad2Deg;
     }
 }

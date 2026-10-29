@@ -5,14 +5,19 @@ namespace GymnastGame.Simulation
 {
     /// <summary>
     /// The gymnast's motion in the plane of the bar swing, as plain C# so it can be unit-tested.
-    /// On the bar it is a pendulum that taps (pumps) speed up; after the release it is a projectile
-    /// that keeps rotating. It keeps its own clock, so the same commands always give the same motion.
+    /// On the bar it is a pendulum (hands on the bar, straight body) that taps (pumps) speed up.
+    /// After the release the centre of mass flies as a projectile, and the body keeps its angular
+    /// momentum L: changing shape changes the moment of inertia I, so the rotation speed is ω = L / I.
+    /// It keeps its own clock, so the same commands always give the same motion.
     /// Call Step once per fixed time step.
     /// </summary>
     public class GymnastSimulation
     {
         private readonly SimulationSettings settings;
+        private readonly BodyModel body;
         private readonly Vector2 barPosition;
+        private readonly BodyPose hangPose;
+        private readonly Vector2 gripToCentreOfMass;    // body frame, in the hanging pose
 
         private float time;
         private float lastPumpTime = float.NegativeInfinity;
@@ -22,18 +27,26 @@ namespace GymnastGame.Simulation
         private float angularVelocity;  // radians per second
 
         // In the air
-        private Vector2 position;
+        private Vector2 position;       // centre of mass
         private Vector2 velocity;
         private float bodyAngle;        // radians, same convention as angle
-        private float spin;             // radians per second, kept from the swing
+        private float angularMomentum;  // per kilogram: L = I ω
         private float airRotation;      // radians since release
+        private BodyPose joints;
 
         public GymnastPhase Phase { get; private set; } = GymnastPhase.OnBar;
+
+        /// <summary>Distance from the hands to the centre of mass in the hanging pose.</summary>
+        public float PendulumLength { get; }
 
         /// <summary>Swing angle in degrees, wrapped to -180..180 (0 = bottom, ±180 = handstand on top).</summary>
         public float AngleDegrees => Mathf.DeltaAngle(0f, angle * Mathf.Rad2Deg);
         public float AngularVelocity => angularVelocity;
         public Vector2 Velocity => velocity;
+
+        /// <summary>Body rotation speed in the air (rad/s): ω = L / I for the current shape.</summary>
+        public float BodyAngularVelocity { get; private set; }
+        public float AngularMomentum => angularMomentum;
 
         /// <summary>Quality (0..1) of the most recent tap: 1 = exactly at the bottom.</summary>
         public float LastPumpQuality { get; private set; }
@@ -46,10 +59,18 @@ namespace GymnastGame.Simulation
         public event Action Released;
         public event Action<TouchdownInfo> TouchedDown;
 
-        public GymnastSimulation(SimulationSettings settings, Vector2 barPosition)
+        public GymnastSimulation(SimulationSettings settings, BodyModel body, Vector2 barPosition)
         {
             this.settings = settings;
+            this.body = body;
             this.barPosition = barPosition;
+
+            hangPose = body.ShapePose(BodyShape.Straight);
+            var hang = body.Evaluate(hangPose);
+            gripToCentreOfMass = hang.CentreOfMass - hang.Grip;
+            PendulumLength = gripToCentreOfMass.magnitude;
+
+            joints = hangPose;
             angle = settings.StartAngle * Mathf.Deg2Rad;
         }
 
@@ -58,8 +79,8 @@ namespace GymnastGame.Simulation
             get
             {
                 if (Phase == GymnastPhase.OnBar)
-                    return new GymnastPose(barPosition + RadiusVector(), angle * Mathf.Rad2Deg);
-                return new GymnastPose(position, bodyAngle * Mathf.Rad2Deg);
+                    return new GymnastPose(barPosition + RadiusVector(), angle * Mathf.Rad2Deg, hangPose);
+                return new GymnastPose(position, bodyAngle * Mathf.Rad2Deg, joints);
             }
         }
 
@@ -77,13 +98,13 @@ namespace GymnastGame.Simulation
             }
 
             if (Phase == GymnastPhase.OnBar) StepSwing(dt);
-            else StepFlight(dt);
+            else StepFlight(dt, commands.Shape);
         }
 
         private void StepSwing(float dt)
         {
             // Pendulum equation: angular acceleration = -(g / L) * sin(angle)
-            float angularAcceleration = -(settings.Gravity / settings.ArmLength) * Mathf.Sin(angle);
+            float angularAcceleration = -(settings.Gravity / PendulumLength) * Mathf.Sin(angle);
             angularVelocity += angularAcceleration * dt;
             angularVelocity *= 1f - settings.Damping * dt;
             angle += angularVelocity * dt;
@@ -127,42 +148,45 @@ namespace GymnastGame.Simulation
             position = barPosition + r;
             velocity = new Vector2(-angularVelocity * r.y, angularVelocity * r.x);
             bodyAngle = angle;
-            spin = angularVelocity;     // the body keeps rotating at the swing speed
+            joints = hangPose;
+
+            // The body leaves the bar rotating at the swing speed: L = I ω.
+            BodyAngularVelocity = angularVelocity;
+            angularMomentum = body.Evaluate(joints).Inertia * angularVelocity;
+
             Phase = GymnastPhase.Flying;
             Released?.Invoke();
         }
 
-        private void StepFlight(float dt)
+        private void StepFlight(float dt, BodyShape shape)
         {
+            // The joints move towards the chosen shape at a fixed angular speed.
+            joints = joints.MoveTowards(body.ShapePose(shape), body.JointSpeed * dt);
+            var geometry = body.Evaluate(joints);
+
+            // Angular momentum is conserved in the air, so a smaller I spins faster.
+            // Simplification: the joints' own motion does not turn the trunk.
+            BodyAngularVelocity = angularMomentum / geometry.Inertia;
+
             velocity.y -= settings.Gravity * dt;
             position += velocity * dt;
 
-            float spinStep = spin * dt;
+            float spinStep = BodyAngularVelocity * dt;
             bodyAngle += spinStep;
             airRotation += spinStep;
 
             bool fallingDown = velocity.y < 0f;
-            if (fallingDown && LowestPointY() <= settings.GroundY)
+            if (fallingDown && geometry.LowestY(position.y, bodyAngle) <= settings.GroundY)
             {
                 Phase = GymnastPhase.Touchdown;
-                Touchdown = new TouchdownInfo(position, velocity,
-                    Mathf.DeltaAngle(0f, bodyAngle * Mathf.Rad2Deg), airRotation * Mathf.Rad2Deg);
+                Vector2 sole = position + PlaneMath.Rotate(geometry.Sole - geometry.CentreOfMass, bodyAngle);
+                Touchdown = new TouchdownInfo(Pose, velocity, sole,
+                    PlaneMath.AngleFromVertical(position - sole), airRotation * Mathf.Rad2Deg);
                 TouchedDown?.Invoke(Touchdown);
             }
         }
 
-        // From the bar to the centre of mass: the body hangs straight down at angle 0.
-        private Vector2 RadiusVector() =>
-            new Vector2(Mathf.Sin(angle), -Mathf.Cos(angle)) * settings.ArmLength;
-
-        /// <summary>Lowest point of the body, whatever angle it is rotated to.</summary>
-        private float LowestPointY()
-        {
-            // The body's "up" direction after rotating by bodyAngle counter-clockwise.
-            float upX = -Mathf.Sin(bodyAngle);
-            float upY = Mathf.Cos(bodyAngle);
-            float verticalExtent = settings.HalfHeight * Mathf.Abs(upY) + settings.BodyRadius * Mathf.Abs(upX);
-            return position.y - verticalExtent;
-        }
+        // From the hands on the bar to the centre of mass: the body hangs straight down at angle 0.
+        private Vector2 RadiusVector() => PlaneMath.Rotate(gripToCentreOfMass, angle);
     }
 }

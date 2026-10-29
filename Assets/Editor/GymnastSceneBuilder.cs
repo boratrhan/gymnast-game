@@ -1,3 +1,4 @@
+using GymnastGame.Simulation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -5,7 +6,8 @@ using UnityEngine;
 /// <summary>
 /// Editor menu that turns the open scene into the real-scale 3D high bar scene:
 /// mat top at y = 0, bar 2.6 m above it (bar axis along Z), perspective camera that follows the gymnast,
-/// and the gameplay components (GymnastController, GymnastView, RoundFlow) wired together.
+/// the articulated figure (bones with Humanoid names, sizes from body.json) and the gameplay components
+/// (GymnastController, GymnastView, RoundFlow) wired together.
 /// Safe to run again: objects are found by name and updated, missing ones are created.
 /// </summary>
 public static class GymnastSceneBuilder
@@ -13,11 +15,17 @@ public static class GymnastSceneBuilder
     private const float BarHeight = 2.6f;        // above the top of the mat
     private const float BarLength = 2.4f;
     private const float BarDiameter = 0.028f;
-    private const float CentreOfMassRadius = 1.1f;   // bar to the gymnast's centre of mass when hanging
-    private const float BodyHeight = 1.7f;
-    private const float BodyThickness = 0.35f;
     private const float MatThickness = 0.2f;
     private const string MaterialFolder = "Assets/Materials";
+    private const string BodyDataPath = "Assets/Data/Body/body.json";
+
+    // Figure widths and limb thicknesses in metres (the planar model only has lengths).
+    private const float ShoulderHalfWidth = 0.19f;
+    private const float HipHalfWidth = 0.09f;
+    private const float TrunkDepth = 0.22f, TrunkWidth = 0.32f;
+    private const float UpperArmThickness = 0.09f, ForearmThickness = 0.075f;
+    private const float ThighThickness = 0.14f, ShankThickness = 0.10f;
+    private const float HeadDiameter = 0.22f, HandDiameter = 0.08f, FootDiameter = 0.09f;
 
     [MenuItem("Tools/Gymnast/Build 3D Scene")]
     public static void Build()
@@ -37,27 +45,30 @@ public static class GymnastSceneBuilder
         Undo.RegisterCompleteObjectUndo(bar, "Bar");
         GameObjectUtility.RemoveMonoBehavioursWithMissingScript(bar);
 
+        var bodyData = AssetDatabase.LoadAssetAtPath<TextAsset>(BodyDataPath);
+        if (bodyData == null)
+        {
+            Debug.LogError($"Missing {BodyDataPath}.");
+            return;
+        }
+        var body = BodyModel.FromJson(bodyData.text);
+
         var gymnast = gymnastObject.transform;
         if (gymnast.parent != null) Undo.SetTransformParent(gymnast, null, "Gymnast");
-        Place(gymnastObject, new Vector3(0f, BarHeight - CentreOfMassRadius, 0f), Quaternion.identity,
-            new Vector3(BodyThickness, BodyHeight / 2f, BodyThickness));  // capsule mesh is 2 m tall
-        SetMaterial(gymnastObject, GetMaterial("Gymnast", new Color(0.80f, 0.12f, 0.15f), 0f, 0.4f));
+        Place(gymnastObject, new Vector3(0f, BarHeight - 1f, 0f), Quaternion.identity, Vector3.one);
+        BuildFigure(gymnastObject, body);
 
         var controller = GetOrAdd<GymnastController>(bar);
         // Inspector values are stored in the scene, so changing the defaults in code is not enough.
         var controllerData = new SerializedObject(controller);
         controllerData.FindProperty("bar").objectReferenceValue = bar.transform;
-        controllerData.FindProperty("settings.armLength").floatValue = CentreOfMassRadius;
-        controllerData.FindProperty("settings.pumpStrength").floatValue = 1.6f;  // tuned in play for the 1.1 m radius
+        controllerData.FindProperty("bodyData").objectReferenceValue = bodyData;
+        controllerData.FindProperty("settings.pumpStrength").floatValue = 1.6f;  // tuned in play
         controllerData.FindProperty("settings.groundY").floatValue = 0f;
-        controllerData.FindProperty("settings.halfHeight").floatValue = BodyHeight / 2f;
-        controllerData.FindProperty("settings.bodyRadius").floatValue = BodyThickness / 2f;
         controllerData.ApplyModifiedProperties();
 
         SetReference(GetOrAdd<RoundFlow>(bar), "gymnast", controller);
-        var view = GetOrAdd<GymnastView>(gymnastObject);
-        SetReference(view, "controller", controller);
-        SetReference(view, "body", gymnast);
+        WireView(GetOrAdd<GymnastView>(gymnastObject), controller, gymnast);
 
         var hud = Object.FindAnyObjectByType<SwingHUD>();
         if (hud != null) SetReference(hud, "gymnast", controller);
@@ -99,6 +110,105 @@ public static class GymnastSceneBuilder
         Undo.CollapseUndoOperations(undoGroup);
         EditorSceneManager.MarkSceneDirty(bar.scene);
         Debug.Log("3D scene built. Save the scene with File > Save.");
+    }
+
+    /// <summary>
+    /// Builds the bone hierarchy under the Gymnast object. Limb bones point down their local -Y,
+    /// so GymnastView bends them with a local Z rotation. Each bone has a primitive as its visual.
+    /// </summary>
+    private static void BuildFigure(GameObject gymnast, BodyModel body)
+    {
+        // The old capsule figure kept its mesh on the Gymnast object itself.
+        foreach (var component in new Component[]
+                 { gymnast.GetComponent<MeshRenderer>(), gymnast.GetComponent<MeshFilter>(), gymnast.GetComponent<Collider>() })
+        {
+            if (component != null) Undo.DestroyObjectImmediate(component);
+        }
+        var oldHips = gymnast.transform.Find("Hips");
+        if (oldHips != null) Undo.DestroyObjectImmediate(oldHips.gameObject);
+
+        var singlet = GetMaterial("Gymnast", new Color(0.80f, 0.12f, 0.15f), 0f, 0.4f);
+        var pants = GetMaterial("Pants", new Color(0.92f, 0.92f, 0.94f), 0f, 0.3f);
+        var skin = GetMaterial("Skin", new Color(0.87f, 0.68f, 0.55f), 0f, 0.3f);
+
+        var hips = Bone("Hips", gymnast.transform, Vector3.zero);
+        var spine = Bone("Spine", hips, Vector3.zero);
+        Visual(PrimitiveType.Capsule, spine, new Vector3(0f, body.TrunkLength / 2f, 0f),
+            new Vector3(TrunkDepth, body.TrunkLength / 2f, TrunkWidth), singlet);
+        var head = Bone("Head", spine, new Vector3(0f, body.TrunkLength, 0f));
+        Visual(PrimitiveType.Sphere, head, new Vector3(0f, body.HeadLength * 0.6f, 0f), Vector3.one * HeadDiameter, skin);
+
+        foreach (var side in new[] { "Left", "Right" })
+        {
+            float z = side == "Left" ? 1f : -1f;
+
+            var upperArm = Bone(side + "UpperArm", spine, new Vector3(0f, body.TrunkLength, z * ShoulderHalfWidth));
+            Limb(upperArm, body.UpperArmLength, UpperArmThickness, singlet);
+            var lowerArm = Bone(side + "LowerArm", upperArm, new Vector3(0f, -body.UpperArmLength, 0f));
+            Limb(lowerArm, body.ForearmLength, ForearmThickness, skin);
+            var hand = Bone(side + "Hand", lowerArm, new Vector3(0f, -body.ForearmLength, 0f));
+            Visual(PrimitiveType.Sphere, hand, new Vector3(0f, -body.HandLength / 2f, 0f), Vector3.one * HandDiameter, skin);
+
+            var upperLeg = Bone(side + "UpperLeg", hips, new Vector3(0f, 0f, z * HipHalfWidth));
+            Limb(upperLeg, body.ThighLength, ThighThickness, pants);
+            var lowerLeg = Bone(side + "LowerLeg", upperLeg, new Vector3(0f, -body.ThighLength, 0f));
+            Limb(lowerLeg, body.ShankLength, ShankThickness, pants);
+            var foot = Bone(side + "Foot", lowerLeg, new Vector3(0f, -body.ShankLength, 0f));
+            Visual(PrimitiveType.Sphere, foot, new Vector3(0f, -body.FootLength / 2f, 0f), Vector3.one * FootDiameter, skin);
+        }
+    }
+
+    private static void WireView(GymnastView view, GymnastController controller, Transform gymnast)
+    {
+        var serialized = new SerializedObject(view);
+        serialized.FindProperty("controller").objectReferenceValue = controller;
+        foreach (var bone in new[]
+                 {
+                     "Hips", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm",
+                     "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg"
+                 })
+        {
+            string field = char.ToLowerInvariant(bone[0]) + bone.Substring(1);   // "LeftUpperArm" -> "leftUpperArm"
+            serialized.FindProperty(field).objectReferenceValue = FindDeep(gymnast, bone);
+        }
+        serialized.ApplyModifiedProperties();
+    }
+
+    private static Transform Bone(string name, Transform parent, Vector3 localPosition)
+    {
+        var bone = new GameObject(name).transform;
+        Undo.RegisterCreatedObjectUndo(bone.gameObject, name);
+        bone.SetParent(parent, false);
+        bone.localPosition = localPosition;
+        return bone;
+    }
+
+    // A capsule from the bone's joint down its local -Y, as long as the segment.
+    private static void Limb(Transform bone, float length, float thickness, Material material) =>
+        Visual(PrimitiveType.Capsule, bone, new Vector3(0f, -length / 2f, 0f),
+            new Vector3(thickness, length / 2f, thickness), material);   // capsule mesh is 2 m tall
+
+    private static void Visual(PrimitiveType type, Transform bone, Vector3 localPosition, Vector3 scale, Material material)
+    {
+        var visual = GameObject.CreatePrimitive(type);
+        visual.name = bone.name + "Mesh";
+        Object.DestroyImmediate(visual.GetComponent<Collider>());   // physics is hand-written
+        visual.transform.SetParent(bone, false);
+        visual.transform.localPosition = localPosition;
+        visual.transform.localScale = scale;
+        visual.GetComponent<Renderer>().sharedMaterial = material;
+        Undo.RegisterCreatedObjectUndo(visual, visual.name);
+    }
+
+    private static Transform FindDeep(Transform root, string name)
+    {
+        if (root.name == name) return root;
+        foreach (Transform child in root)
+        {
+            var found = FindDeep(child, name);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private static void SetUpCamera(Transform bar, Transform gymnast)
