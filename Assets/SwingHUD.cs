@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using GymnastGame.Simulation;
 using UnityEngine;
 
 /// <summary>
@@ -48,6 +49,9 @@ public class SwingHUD : MonoBehaviour
         gymnast.Pumped += HandlePumped;
         gymnast.FullTurnCompleted += HandleFullTurn;
         gymnast.Released += HandleReleased;
+        gymnast.Regrasped += HandleRegrasped;
+        gymnast.CatchSlipped += HandleCatchSlipped;
+        gymnast.CatchFailed += HandleCatchFailed;
         gymnast.Landed += HandleLanded;
     }
 
@@ -57,6 +61,9 @@ public class SwingHUD : MonoBehaviour
         gymnast.Pumped -= HandlePumped;
         gymnast.FullTurnCompleted -= HandleFullTurn;
         gymnast.Released -= HandleReleased;
+        gymnast.Regrasped -= HandleRegrasped;
+        gymnast.CatchSlipped -= HandleCatchSlipped;
+        gymnast.CatchFailed -= HandleCatchFailed;
         gymnast.Landed -= HandleLanded;
     }
 
@@ -71,6 +78,19 @@ public class SwingHUD : MonoBehaviour
     private void HandleFullTurn(int turns) => ShowFeedback("GIANT SWING!", new Color(0.5f, 0.8f, 1f));
 
     private void HandleReleased() => ShowFeedback("RELEASE!", Color.white);
+    private void HandleRegrasped(FlightRecord flight) => ShowFeedback("CAUGHT!", new Color(0.4f, 0.9f, 0.4f));
+    private void HandleCatchSlipped() => ShowFeedback("SLIPPED! too fast", new Color(1f, 0.4f, 0.4f));
+    private void HandleCatchFailed(CatchBlocker reason) => ShowFeedback(CatchFailureText(reason), new Color(1f, 0.7f, 0.15f));
+
+    private static string CatchFailureText(CatchBlocker reason)
+    {
+        switch (reason)
+        {
+            case CatchBlocker.TooEarly: return "too early";
+            case CatchBlocker.TooFast: return "too fast";
+            default: return "too far";
+        }
+    }
 
     private void OnDestroy()
     {
@@ -130,12 +150,16 @@ public class SwingHUD : MonoBehaviour
             GUI.Label(new Rect(0, Screen.height * 0.15f, Screen.width, 80), feedbackText, feedbackStyle);
         }
 
-        if (gymnast.IsSwinging)
+        if (gymnast.IsSwinging || gymnast.IsFlying)
         {
-            GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 30),
-                "SPACE / click: pump at the bottom     ENTER / right-click: release     in the air: hold A tuck, S pike, D twist",
-                hintStyle);
+            string hint = gymnast.IsSwinging
+                ? "SPACE / click: pump at the bottom     ENTER / right-click: release     T: slow motion"
+                : "hold A tuck, S pike, D twist     ENTER when the bar lights up: green = clean catch, yellow = catch with deductions";
+            GUI.Label(new Rect(0, Screen.height - 50, Screen.width, 30), hint, hintStyle);
         }
+
+        if (Time.timeScale < 1f)
+            GUI.Label(new Rect(Screen.width - 260, 20, 240, 40), $"SLOW MOTION {Time.timeScale:0.#}x", counterStyle);
 
         if (hasLanded)
             DrawScoreCard();
@@ -196,6 +220,7 @@ public class SwingHUD : MonoBehaviour
         AddRow(CardRowKind.Gap, "");
         AddRow(CardRowKind.Header, $"E  {result.Execution:F1}");
         AddScoreLines(result.ExecutionLines, "no deductions");
+        AddFlightLines(gymnast.Flights);
         AddRow(CardRowKind.Gap, "");
         AddRow(CardRowKind.Total, $"{result.Total:F2}");
         AddRow(CardRowKind.Hint, "Press R to try again");
@@ -214,6 +239,26 @@ public class SwingHUD : MonoBehaviour
             AddRow(CardRowKind.Line, $"<color={colour}>{line.Points:+0.0;-0.0}</color>   {line.Label}");
         }
     }
+
+    // One line per flight, for example "2  2 saltos · tuck · over the bar · caught".
+    private void AddFlightLines(IReadOnlyList<FlightRecord> flights)
+    {
+        if (flights.Count == 0) return;
+        AddRow(CardRowKind.Gap, "");
+        AddRow(CardRowKind.Header, "Flights");
+        for (int i = 0; i < flights.Count; i++)
+        {
+            var flight = flights[i];
+            var parts = new List<string> { Count(flight.Saltos, "salto", "saltos") };
+            if (flight.HalfTwists > 0) parts.Add(Count(flight.HalfTwists, "half twist", "half twists"));
+            parts.Add(flight.MainShape.ToString().ToLowerInvariant());
+            if (flight.OverBar) parts.Add("over the bar");
+            parts.Add(flight.End == FlightEnd.Caught ? "caught" : flight.Slipped ? "slipped" : "dismount");
+            AddRow(CardRowKind.Line, $"<color=#9AA0A6>{i + 1}</color>   {string.Join(" · ", parts)}");
+        }
+    }
+
+    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
 
     private void AddRow(CardRowKind kind, string text)
     {

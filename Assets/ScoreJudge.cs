@@ -76,13 +76,15 @@ public static class ScoreJudge
     public static bool IsFall(float landingErrorDegrees) => landingErrorDegrees > StepTolerance;
 
     /// <summary>
-    /// Scores the routine. The twist deduction comes from the data-driven incompleteTwist rule
-    /// (deductions.json); without a rule, the twist is not deducted.
+    /// Scores the routine. Saltos and full twists are the totals of all flights (caught releases and the
+    /// dismount). The twist deduction is for the dismount and comes from the data-driven incompleteTwist rule
+    /// (deductions.json); without a rule, the twist is not deducted. otherDeductions (for example the catches,
+    /// judged when they happened) are added as their own lines.
     /// </summary>
-    public static ScoreResult Evaluate(int giantSwings, float airRotationDegrees, float landingErrorDegrees, int misses,
-        int fullTwists = 0, float twistErrorDegrees = 0f, DeductionRule incompleteTwist = null)
+    public static ScoreResult Evaluate(int giantSwings, int airFlips, float landingErrorDegrees, int misses,
+        int fullTwists = 0, float twistErrorDegrees = 0f, DeductionRule incompleteTwist = null,
+        IReadOnlyList<ScoreLine> otherDeductions = null)
     {
-        int airFlips = Mathf.FloorToInt(Mathf.Abs(airRotationDegrees) / 360f);
 
         var difficulty = new List<ScoreLine>();
         if (giantSwings > 0)
@@ -99,11 +101,14 @@ public static class ScoreJudge
             execution.Add(new ScoreLine(-missDeduction, Count(misses, "missed pump", "missed pumps")));
         }
 
+        if (otherDeductions != null)
+            execution.AddRange(otherDeductions);
+
         if (incompleteTwist != null)
         {
             var twist = incompleteTwist.Evaluate(twistErrorDegrees, "deg");
             if (twist.Points > 0m)
-                execution.Add(new ScoreLine(-(float)twist.Points, $"twist {twistErrorDegrees:F0}° off"));
+                execution.Add(new ScoreLine(-(float)twist.Points, $"dismount: twist {twistErrorDegrees:F0}° off"));
         }
 
         string label;

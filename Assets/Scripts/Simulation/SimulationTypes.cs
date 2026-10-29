@@ -14,16 +14,19 @@ namespace GymnastGame.Simulation
     public readonly struct GymnastCommands
     {
         public bool Pump { get; }
-        public bool Release { get; }
+        public bool ReleaseOrCatch { get; } // on the bar: let go; in the air: try to catch the bar
         public BodyShape Shape { get; }     // used in the air
         public bool Twist { get; }          // held in the air
+        public bool CatchHeld { get; }      // Enter held in the air: catch as soon as the hands are within reach
 
-        public GymnastCommands(bool pump, bool release, BodyShape shape = BodyShape.Straight, bool twist = false)
+        public GymnastCommands(bool pump, bool releaseOrCatch, BodyShape shape = BodyShape.Straight, bool twist = false,
+            bool catchHeld = false)
         {
             Pump = pump;
-            Release = release;
+            ReleaseOrCatch = releaseOrCatch;
             Shape = shape;
             Twist = twist;
+            CatchHeld = catchHeld;
         }
 
         public static GymnastCommands None => new GymnastCommands(false, false);
@@ -59,22 +62,129 @@ namespace GymnastGame.Simulation
         public Vector2 Sole { get; }                // world position of the feet
         public float LandingAngleDegrees { get; }   // feet → centre of mass line against vertical, -180..180
         public float AirRotationDegrees { get; }    // total body rotation since release, signed
+        public float FlightTwistDegrees { get; }    // twist since release, signed
 
-        /// <summary>Completed half twists, counted to the nearest half twist (so 340° counts as two).</summary>
-        public int HalfTwists => TwistMath.NearestHalfTwists(Pose.TwistDegrees);
+        /// <summary>Completed half twists in this flight, counted to the nearest half twist (so 340° counts as two).</summary>
+        public int HalfTwists => TwistMath.NearestHalfTwists(FlightTwistDegrees);
 
         /// <summary>How far the twist is from that nearest half twist, 0..90 degrees.</summary>
-        public float TwistErrorDegrees => TwistMath.ErrorFromHalfTwist(Pose.TwistDegrees);
+        public float TwistErrorDegrees => TwistMath.ErrorFromHalfTwist(FlightTwistDegrees);
 
         public TouchdownInfo(GymnastPose pose, Vector2 velocity, Vector2 sole, float landingAngleDegrees,
-            float airRotationDegrees)
+            float airRotationDegrees, float flightTwistDegrees = 0f)
         {
             Pose = pose;
             Velocity = velocity;
             Sole = sole;
             LandingAngleDegrees = landingAngleDegrees;
             AirRotationDegrees = airRotationDegrees;
+            FlightTwistDegrees = flightTwistDegrees;
         }
+    }
+
+    /// <summary>What makes a catch impossible right now. None means the hands can catch the bar.</summary>
+    public enum CatchBlocker
+    {
+        None,
+        TooEarly,       // the hands have not moved away from the bar yet after the release
+        TooFar,         // the hands are further from the bar than the maximum reach
+        TooFast         // moving too fast towards or away from the bar: the hands would slip
+    }
+
+    /// <summary>
+    /// How clean a catch is (or would be now). The simulation only measures; the regrasp rules in
+    /// deductions.json turn these into deductions.
+    /// </summary>
+    public readonly struct CatchQuality
+    {
+        public float Reach { get; }             // metres between the hands and the bar
+        public float LegBend { get; }           // degrees the hips or knees are still bent (tuck or pike)
+        public float ArmDeviation { get; }      // degrees the arms are away from straight overhead
+        public float TwistError { get; }        // degrees from the nearest half twist
+        public float ImpactSpeed { get; }       // m/s towards or away from the bar
+
+        public CatchQuality(float reach, float legBend, float armDeviation, float twistError, float impactSpeed)
+        {
+            Reach = reach;
+            LegBend = legBend;
+            ArmDeviation = armDeviation;
+            TwistError = twistError;
+            ImpactSpeed = impactSpeed;
+        }
+    }
+
+    /// <summary>Whether the hands could catch the bar at this moment, and how clean it would be.</summary>
+    public readonly struct CatchStatus
+    {
+        public bool InFlight { get; }
+        public CatchBlocker Blocker { get; }
+        public CatchQuality Quality { get; }
+
+        public bool CanCatch => InFlight && Blocker == CatchBlocker.None;
+
+        public CatchStatus(bool inFlight, CatchBlocker blocker, CatchQuality quality)
+        {
+            InFlight = inFlight;
+            Blocker = blocker;
+            Quality = quality;
+        }
+
+        public static CatchStatus NotFlying => new CatchStatus(false, CatchBlocker.TooFar,
+            new CatchQuality(float.PositiveInfinity, 0f, 0f, 0f, 0f));
+    }
+
+    public enum FlightEnd
+    {
+        Caught,     // the hands caught the bar again
+        Landed      // ended on the mat (a dismount, or a missed or slipped catch)
+    }
+
+    /// <summary>
+    /// What happened in one flight, from release to catch or landing. Element recognition (step 7)
+    /// turns these into element ids; until then the placeholder score adds up saltos and twists.
+    /// </summary>
+    public readonly struct FlightRecord
+    {
+        public float ReleaseAngleDegrees { get; }       // swing angle at release, -180..180
+        public float ReleaseAngularVelocity { get; }    // rad/s, the swing direction is its sign
+        public float RotationDegrees { get; }           // body rotation from release to the end, signed
+        public float TwistDegrees { get; }              // twist from release to the end, signed
+        public BodyShape MainShape { get; }             // the shape held longest
+        public bool OverBar { get; }                    // the centre of mass crossed above the bar
+        public FlightEnd End { get; }
+        public bool Slipped { get; }                    // the hands reached the bar but could not hold it
+        public CatchQuality Catch { get; }              // how clean the catch was (caught flights only)
+        public float Duration { get; }                  // seconds in the air
+
+        public float CatchImpactSpeed => Catch.ImpactSpeed;
+
+        public FlightRecord(float releaseAngleDegrees, float releaseAngularVelocity, float rotationDegrees,
+            float twistDegrees, BodyShape mainShape, bool overBar, FlightEnd end, bool slipped,
+            CatchQuality catchQuality, float duration)
+        {
+            ReleaseAngleDegrees = releaseAngleDegrees;
+            ReleaseAngularVelocity = releaseAngularVelocity;
+            RotationDegrees = rotationDegrees;
+            TwistDegrees = twistDegrees;
+            MainShape = mainShape;
+            OverBar = overBar;
+            End = end;
+            Slipped = slipped;
+            Catch = catchQuality;
+            Duration = duration;
+        }
+
+        /// <summary>
+        /// Full saltos. A caught flight starts and ends with the body along the radius, so the extra
+        /// rotation between release and catch angle is not a salto and the count is rounded; a landing
+        /// counts only completed turns.
+        /// </summary>
+        public int Saltos => End == FlightEnd.Caught
+            ? Mathf.RoundToInt(Mathf.Abs(RotationDegrees) / 360f)
+            : Mathf.FloorToInt(Mathf.Abs(RotationDegrees) / 360f);
+
+        public int HalfTwists => TwistMath.NearestHalfTwists(TwistDegrees);
+        public int FullTwists => HalfTwists / 2;
     }
 
     /// <summary>

@@ -68,6 +68,34 @@
       ]
     },
     {
+      "id": "regraspReach",
+      "scope": "HB",
+      "source": "game-interpretation",
+      "category": "technical",
+      "description": "Hands still away from the bar when the catch starts (the body has to reach for it)",
+      "measure": "handDistance",
+      "perOccurrence": true,
+      "enabled": true,
+      "bands": [
+        { "above": 0.15, "unit": "m", "deduction": 0.1, "notRecognized": false },
+        { "above": 0.35, "unit": "m", "deduction": 0.3, "notRecognized": false }
+      ]
+    },
+    {
+      "id": "regraspNotOpened",
+      "scope": "HB",
+      "source": "game-interpretation",
+      "category": "execution",
+      "description": "Hips or knees still bent (tuck or pike not opened) when catching the bar",
+      "measure": "angleDeg",
+      "perOccurrence": true,
+      "enabled": true,
+      "bands": [
+        { "above": 10, "unit": "deg", "deduction": 0.1, "notRecognized": false },
+        { "above": 45, "unit": "deg", "deduction": 0.3, "notRecognized": false }
+      ]
+    },
+    {
       "id": "bentArmsRegrasp",
       "scope": "HB",
       "source": "code",

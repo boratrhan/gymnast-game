@@ -102,6 +102,11 @@ public static class GymnastSceneBuilder
         Place(floor, new Vector3(0f, -MatThickness, 0f), Quaternion.identity, new Vector3(6f, 1f, 6f));  // plane mesh is 10 m
         SetMaterial(floor, GetMaterial("Floor", new Color(0.25f, 0.25f, 0.27f), 0f, 0.1f));
 
+        WireCatchIndicator(GetOrAdd<CatchIndicator>(bar), controller,
+            barVisual.GetComponent<Renderer>(),
+            FindDeep(gymnast, "LeftHandMesh").GetComponent<Renderer>(),
+            FindDeep(gymnast, "RightHandMesh").GetComponent<Renderer>());
+
         SetUpCamera(bar.transform, gymnast);
         SetUpLight();
 
@@ -175,6 +180,17 @@ public static class GymnastSceneBuilder
             string field = char.ToLowerInvariant(bone[0]) + bone.Substring(1);   // "LeftUpperArm" -> "leftUpperArm"
             serialized.FindProperty(field).objectReferenceValue = FindDeep(gymnast, bone);
         }
+        serialized.ApplyModifiedProperties();
+    }
+
+    private static void WireCatchIndicator(CatchIndicator indicator, GymnastController controller, params Renderer[] renderers)
+    {
+        var serialized = new SerializedObject(indicator);
+        serialized.FindProperty("controller").objectReferenceValue = controller;
+        var list = serialized.FindProperty("highlighted");
+        list.arraySize = renderers.Length;
+        for (int i = 0; i < renderers.Length; i++)
+            list.GetArrayElementAtIndex(i).objectReferenceValue = renderers[i];
         serialized.ApplyModifiedProperties();
     }
 

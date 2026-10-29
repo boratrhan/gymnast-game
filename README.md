@@ -13,16 +13,18 @@ You swing on the high bar, build momentum with well-timed taps, let go at the ri
 | Input | Action |
 |---|---|
 | `Space` / left click | **Pump.** Tap as the gymnast passes the bottom of the swing to add momentum |
-| `Enter` / right click | **Release.** Let go of the bar and fly |
+| `Enter` / right click | **Release.** Let go of the bar and fly. In the air: press near the bar, or hold, to **catch** it again |
 | `A` (hold, in the air) | **Tuck.** Spin faster |
 | `S` (hold, in the air) | **Pike** |
 | `D` (hold, in the air) | **Twist.** Arms come to the chest; let go to stop |
+| `T` | Slow motion on / off (0.5x), for practice |
 | `R` | Try again after landing |
 
 1. Tap at the bottom of each swing. The closer to the bottom, the stronger the push: **PERFECT**, **GOOD**, **OK** or **MISS**.
 2. Build enough speed to go all the way over the bar: a **giant swing**.
 3. Release and rotate in the air. Letting go while swinging down gives a forward salto. Tuck or pike to spin faster, hold D to twist, and open up before landing.
-4. Land as upright as possible.
+4. Or come back to the bar: press Enter when the bar and hands light up, or simply hold Enter and the hands grab the bar as soon as it is within reach (green: a clean catch; yellow: the catch holds but costs deductions for hands far from the bar, a tuck or pike not opened, arms not up, or a twist off). Only hands more than 0.6 m away or hitting the bar too hard make you miss; a missed press says why, then keep swinging and release again. Try a giant swing, let go when horizontal on the way up and tuck for about half a second: a double salto back to the bar.
+5. Land as upright as possible.
 
 ## Scoring
 
@@ -30,13 +32,13 @@ Modelled on the structure of artistic gymnastics scoring:
 
 **Difficulty (D)**: what you attempted
 - +0.5 per giant swing
-- +1.0 per full salto in the air
-- +0.5 per full twist (placeholder until elements are recognised)
+- +1.0 per full salto and +0.5 per full twist, added up over every flight, caught or not (placeholders until elements are recognised)
 
 **Execution (E)**: how cleanly you did it, starting from 10.0
 - −0.1 per missed tap (up to −1.0)
 - −0.3 for a small step on landing (body 15°–45° off upright)
 - −1.0 for a fall (more than 45° off upright)
+- Each catch: separate deductions for hands far from the bar, not opened, arms not up and twist off (from `deductions.json`)
 - Twist not finished on a half or full turn: −0.1 / −0.3 / −0.5 by how far it is off (up to 5° is free), read from `deductions.json`
 
 A landing within 15° of upright is a **stuck landing**, with no deduction.

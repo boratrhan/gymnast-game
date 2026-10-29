@@ -61,6 +61,28 @@ namespace GymnastGame.Simulation
     }
 
     /// <summary>
+    /// When the hands can catch the bar. Only distance and impact speed can stop a catch; how clean it was
+    /// (reach, shape, arms, twist) is judged by the regrasp rules in deductions.json.
+    /// </summary>
+    public readonly struct CatchLimits
+    {
+        public float MaxReach { get; }              // metres between the hands and the bar
+        public float ReachTime { get; }             // seconds the body takes to reach for the bar
+        public float InputBuffer { get; }           // seconds an early Enter press still counts
+        public float MaxImpactSpeed { get; }        // m/s towards or away from the bar
+        public float RearmDistance { get; }         // metres the hands must move away after the release
+
+        public CatchLimits(float maxReach, float reachTime, float inputBuffer, float maxImpactSpeed, float rearmDistance)
+        {
+            MaxReach = maxReach;
+            ReachTime = reachTime;
+            InputBuffer = inputBuffer;
+            MaxImpactSpeed = maxImpactSpeed;
+            RearmDistance = rearmDistance;
+        }
+    }
+
+    /// <summary>
     /// Planar segment model of the gymnast (trunk, head, arms, legs) built from body.json.
     /// Turns joint angles into key points, centre of mass and moment of inertia.
     /// </summary>
@@ -84,6 +106,9 @@ namespace GymnastGame.Simulation
         public float MaxTwistMomentum { get; }
         public float TwistSpinUpTime { get; }
         public float TwistStopTime { get; }
+
+        /// <summary>Limits for catching the bar after a flight (body.json "catch").</summary>
+        public CatchLimits Catch { get; }
 
         public float ShoulderHalfWidth => shoulderHalfWidth;
         public float HipHalfWidth => hipHalfWidth;
@@ -136,6 +161,9 @@ namespace GymnastGame.Simulation
             float range = BodyPose.MaxDifference(ShapePose(BodyShape.Straight), ShapePose(BodyShape.Tuck));
             JointSpeed = range / ShapeChangeTime;
             HandsInSpeed = 1f / ShapeChangeTime;
+
+            Catch = new CatchLimits(data.@catch.maxReach, data.@catch.reachTime, data.@catch.inputBuffer,
+                data.@catch.maxImpactSpeed, data.@catch.rearmDistance);
 
             TwistSpinUpTime = data.twist.spinUpTime;
             TwistStopTime = data.twist.stopTime;
@@ -275,6 +303,7 @@ namespace GymnastGame.Simulation
             public float shoulderHalfWidth;
             public float hipHalfWidth;
             public TwistEntry twist;
+            public CatchEntry @catch;   // "catch" is a C# keyword, so the field name needs @
             public SegmentEntry[] segments;
             public PoseEntry[] poses;
         }
@@ -289,6 +318,16 @@ namespace GymnastGame.Simulation
             public float gyration;
             public float radius;
             public bool paired;
+        }
+
+        [Serializable]
+        private class CatchEntry
+        {
+            public float maxReach;
+            public float reachTime;
+            public float inputBuffer;
+            public float maxImpactSpeed;
+            public float rearmDistance;
         }
 
         [Serializable]

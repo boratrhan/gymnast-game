@@ -25,8 +25,8 @@ namespace GymnastGame.Simulation.Tests
         private static GymnastSimulation Create(float damping = 0.15f, float startAngle = 30f) =>
             new GymnastSimulation(new SimulationSettings().With(damping, startAngle), body, Bar);
 
-        private static GymnastCommands Pump => new GymnastCommands(pump: true, release: false);
-        private static GymnastCommands Release => new GymnastCommands(pump: false, release: true);
+        private static GymnastCommands Pump => new GymnastCommands(pump: true, releaseOrCatch: false);
+        private static GymnastCommands Release => new GymnastCommands(pump: false, releaseOrCatch: true);
         private static GymnastCommands InShape(BodyShape shape) => new GymnastCommands(false, false, shape);
         private static GymnastCommands Twisting(BodyShape shape) => new GymnastCommands(false, false, shape, twist: true);
 
