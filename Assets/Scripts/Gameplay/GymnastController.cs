@@ -45,18 +45,22 @@ public class GymnastController : MonoBehaviour
 
     private LandingMotion landingMotion;    // null until touchdown
 
+    // The simulation is null only if Awake could not set it up (a missing reference, reported there).
+    // The properties below then return safe defaults, so other components do not fail every frame.
+    public bool IsReady => simulation != null;
+
     public BodyModel Body { get; private set; }
-    public bool IsSwinging => simulation.Phase == GymnastPhase.OnBar;
-    public bool IsFlying => simulation.Phase == GymnastPhase.Flying;
-    public IReadOnlyList<FlightRecord> Flights => simulation.Flights;
-    public CatchStatus CatchStatus => simulation.CatchStatus;
+    public bool IsSwinging => IsReady && simulation.Phase == GymnastPhase.OnBar;
+    public bool IsFlying => IsReady && simulation.Phase == GymnastPhase.Flying;
+    public IReadOnlyList<FlightRecord> Flights => IsReady ? simulation.Flights : Array.Empty<FlightRecord>();
+    public CatchStatus CatchStatus => IsReady ? simulation.CatchStatus : CatchStatus.NotFlying;
 
     /// <summary>Whether Enter would catch the bar now, and whether that catch would be clean.</summary>
     public CatchPreview CatchPreview
     {
         get
         {
-            var status = simulation.CatchStatus;
+            var status = CatchStatus;
             if (!status.CanCatch) return CatchPreview.None;
             var q = status.Quality;
             return regraspJudge.IsClean(q.Reach, q.LegBend, q.ArmDeviation, q.TwistError)
@@ -65,12 +69,13 @@ public class GymnastController : MonoBehaviour
         }
     }
     public bool HasLanded { get; private set; }
-    public int FullTurns => simulation.FullTurns;
-    public int MissCount => simulation.MissCount;
+    public int FullTurns => IsReady ? simulation.FullTurns : 0;
+    public int MissCount => IsReady ? simulation.MissCount : 0;
     public ScoreResult Result { get; private set; }
 
     /// <summary>The pose to draw this frame: the simulation, or the landing motion once it has started.</summary>
-    public GymnastPose CurrentPose => landingMotion != null ? landingMotion.Pose : simulation.Pose;
+    public GymnastPose CurrentPose =>
+        landingMotion != null ? landingMotion.Pose : IsReady ? simulation.Pose : default;
 
     public event Action<float> Pumped;
     public event Action<int> FullTurnCompleted;
@@ -82,6 +87,16 @@ public class GymnastController : MonoBehaviour
 
     private void Awake()
     {
+        string missing = MissingReferences();
+        if (missing.Length > 0)
+        {
+            // One clear message instead of a NullReferenceException here and hundreds after it.
+            Debug.LogError($"{nameof(GymnastController)} on '{name}' is missing {missing}. " +
+                           "Run Tools > Gymnast > Build 3D Scene.", this);
+            enabled = false;    // no Update or FixedUpdate without a simulation
+            return;
+        }
+
         // A TextAsset is a text file in the project that Unity loads for us, like a resource.
         Body = BodyModel.FromJson(bodyData.text);
         var deductions = DeductionTable.FromJson(deductionData.text);
@@ -93,6 +108,7 @@ public class GymnastController : MonoBehaviour
     // The simulation is created and owned here, so these subscriptions live as long as this component.
     private void OnEnable()
     {
+        if (!IsReady) return;
         simulation.Pumped += HandlePumped;
         simulation.FullTurnCompleted += HandleFullTurn;
         simulation.Released += HandleReleased;
@@ -104,6 +120,7 @@ public class GymnastController : MonoBehaviour
 
     private void OnDisable()
     {
+        if (!IsReady) return;
         simulation.Pumped -= HandlePumped;
         simulation.FullTurnCompleted -= HandleFullTurn;
         simulation.Released -= HandleReleased;
@@ -173,6 +190,15 @@ public class GymnastController : MonoBehaviour
         landingMotion.Finished -= FinishLanding;
         HasLanded = true;
         Landed?.Invoke(Result);
+    }
+
+    private string MissingReferences()
+    {
+        var missing = new List<string>();
+        if (bar == null) missing.Add(nameof(bar));
+        if (bodyData == null) missing.Add(nameof(bodyData));
+        if (deductionData == null) missing.Add(nameof(deductionData));
+        return string.Join(", ", missing);
     }
 
     private static bool TapPressedThisFrame()

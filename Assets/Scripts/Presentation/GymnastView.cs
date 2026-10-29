@@ -19,6 +19,8 @@ public class GymnastView : MonoBehaviour
 
     private void Update()
     {
+        if (!controller.IsReady) return;    // the controller has already reported what is missing
+
         GymnastPose pose = controller.CurrentPose;
         BodyPose joints = pose.Joints;
 
