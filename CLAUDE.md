@@ -62,24 +62,37 @@ Current scoring placeholder (to be replaced by Code of Points data):
 5. `[SerializeField] private` fields for Inspector tuning. Avoid public fields.
 6. Avoid expensive calls (Debug.Log, GetComponent, Find) in Update and FixedUpdate.
 
-## Next steps (planned order)
+## Roadmap
 
-1. ~~Code of Points analysis~~ done: `Assets/Data/HighBar/` (elements, deductions, composition). Do not copy the rulebook text into the game. Use the rules as mechanics only. Do not use the FIG logo or name as branding.
-2. ~~Data model and D-score~~ done: `Assets/Scripts/Rules/` (own assembly) with EditMode tests.
-3. **3D migration** (in progress, plan approved by Bora), one commit per step, game playable after each:
-   1. ~~URP, perspective camera, real-scale 3D scene, capsule figure~~ done.
-   2. ~~Split into simulation, controller, view and round flow, with an animated landing~~ done.
-   3. ~~Articulated figure, BodyPose, tuck and pike with angular momentum~~ done. Shape change time (0.15 s) and height (1.70 m) are in body.json, to tune in play.
-   4. ~~Twist in flight~~ done: D held builds twist momentum H, rate = H / I_long (3 turns/s with arms on the chest, in body.json). Twist error is measured from the nearest half twist until elements are recognised; incompleteTwist in deductions.json (5° tolerance is game-interpretation). Placeholder D +0.5 per full twist.
-   5. Regrasp: catch window around the bar, tangential velocity kept, grip from twist angle.
-   6. On-bar turns and hops (tap = ½ turn, hold = 1/1 near handstand).
-   - Physics stays planar (XY plane, bar along Z); twist ψ about the body's long axis is the only extra rotation. No free 3D physics.
-   - Controls: Space = pump, Enter = release / catch, A = tuck (hold), S = pike (hold), D = twist (hold).
-4. Element recognition: detect which element was performed from swing and flight data.
-5. Replace the placeholder `ScoreJudge` values with the data-driven rules. Add unit tests for `ScoreJudge`.
+**Goal:** the gymnast can perform elements from every element group of the high bar tables (EG I swings and turns, EG II flights, EG III in-bar and Adler elements, EG IV dismounts), in routines of several elements, judged by the data in `Assets/Data/HighBar/`. Today only dismounts (EG IV) are possible.
+
+Step numbers below are the ones used in conversations with Bora. One commit per step, game playable after each.
+
+Done:
+- ~~Code of Points analysis~~: `Assets/Data/HighBar/` (elements, deductions, composition). Do not copy the rulebook text into the game. Use the rules as mechanics only. Do not use the FIG logo or name as branding.
+- ~~Data model and D-score engine~~: `Assets/Scripts/Rules/` (own assembly) with EditMode tests.
+- ~~1. URP, perspective camera, real-scale 3D scene~~.
+- ~~2. Split into simulation, controller, view and round flow, with an animated landing~~.
+- ~~3. Articulated figure, BodyPose, tuck and pike with angular momentum~~. Shape change time (0.15 s) and height (1.70 m) are in body.json, to tune in play.
+- ~~4. Twist in flight~~: D held builds twist momentum H, rate = H / I_long (3 turns/s with arms on the chest, in body.json). Piked twisting is slowest, confirmed by Bora as realistic. Twist error is measured from the nearest half twist until elements are recognised; incompleteTwist in deductions.json (5° tolerance is game-interpretation). Placeholder D +0.5 per full twist.
+
+Next:
+5. **Regrasp: catch the bar after a flight.** Opens EG II flight elements and routines with more than one element (swing → flight → catch → swing → … → dismount). Catch window around the bar, grip and facing from the twist angle, a record of each flight (saltos, twists, shape, over the bar, caught) for recognition.
+6. **EG I turns and hops on the bar** (½ turns, pirouettes, Quast, Rybalko, el-grip): facing and grip state, tap = ½ turn, hold = 1/1 near the handstand; handstand deviation (strict / lenient tables).
+7. **Element recognition:** turn swing and flight records into element ids from elements.json, then feed the routine to `DScoreCalculator`.
+8. **EG III in-bar and Adler elements** (Stalder, Endo, Weiler, Adler, free hip circles). The figure and the swing need:
+   - hip abduction (legs apart sideways) for straddle shapes, as a new BodyPose joint, with the legs' side offset in the model and a rotation about the bone's local X in the view;
+   - shape changes while on the bar, so the hands-to-centre-of-mass radius changes during the swing (angular momentum about the bar instead of a fixed pendulum length);
+   - deep pike and stoop positions with the feet passing between the hands, and a wider shoulder range (shoulder angle beyond 180° for Adler-type elements);
+   - "through handstand" detection to apply the handstand deviation deductions.
+9. **Replace the placeholder `ScoreJudge`** with the data-driven rules (DScoreCalculator for D, deductions.json for E). Add unit tests.
    - Landing deductions must follow the Code of Points (Art. 9.4): small step 0.1 each, large step 0.3, fall 1.0, max 1.0 for steps. The placeholder takes 0.3 for a small step; fix this here. Until then the stick / step / fall thresholds stay in `ScoreJudge` and `GymnastController` only classifies with them.
-6. Measure execution faults (bent arms or knees, open legs) from the figure's joint angles.
-7. Later: gymnast attributes, mobile touch controls, and a real UI (replace OnGUI).
+10. **Execution faults from the figure's joint angles** (bent arms or knees, open legs).
+11. Later: gymnast attributes, mobile touch controls, a real UI (replace OnGUI), Mixamo character view.
+
+Design constraints for all steps:
+- Physics stays planar (XY plane, bar along Z); twist ψ about the body's long axis is the only extra rotation. No free 3D physics.
+- Controls: Space = pump, Enter = release / catch, A = tuck (hold), S = pike (hold), D = twist (hold).
 
 ## Practical notes
 
